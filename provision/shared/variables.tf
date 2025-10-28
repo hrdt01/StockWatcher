@@ -1,20 +1,3 @@
-# variable "serviceconnection_spn" {
-#   type        = string
-#   default     = "hactema-StockTracker-44416764-95de-4342-9c7f-a28bd4f1c56b"
-#   description = "Name of the service principal managing the AZDO service connection"
-# }
-
-# variable "azdo_target_project" {
-#   type        = string
-#   default     = "hactema-StockTracker-44416764-95de-4342-9c7f-a28bd4f1c56b"
-#   description = "Name of the AZDO project"
-# }
-
-# variable "azdo_variable_group_name"{
-#   type        = string
-#   default     = "Terraform"
-#   description = "Name of the AZDO Variable Group for Terraform pipeline variables"
-# }
 
 variable "stocktracker_resource_group_name" {
   type        = string
