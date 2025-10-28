@@ -1,0 +1,40 @@
+major-version-bump-message: '\SemVer:\(Major\)'
+minor-version-bump-message: '\SemVer:\(Minor\)'
+patch-version-bump-message: '\SemVer:\(Patch\)'
+no-bump-message: '\SemVer:\(None\)'
+branches:
+  master:
+    regex: ^master$
+    mode: ContinuousDeployment
+    label: ''
+    increment: Patch
+    prevent-increment:
+      when-branch-merged: true
+    track-merge-target: false
+  develop:
+    regex: ^dev(elop)?(ment)?$
+    mode: ContinuousDelivery
+    label: 'beta'
+    increment: Patch
+  feature:
+    regex: ^features?[/-](?<BranchName>.+)
+    mode: ContinuousDelivery
+    label: 'alpha'
+    increment: Inherit
+    prevent-increment:
+      when-branch-merged: false
+    track-merge-target: false
+  release:
+    regex: ^releases?[/-](?<BranchName>.+)
+    mode: ContinuousDeployment
+    label: 'rc'
+    increment: Minor
+    prevent-increment:
+      when-branch-merged: true
+    track-merge-target: false
+    is-release-branch: true
+    source-branches: ['master']
+
+ignore:
+  sha: []
+merge-message-formats: {}

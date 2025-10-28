@@ -1,0 +1,33 @@
+parameters:
+  - name: workingDirectory
+    type: string
+    default: ''
+  - name: environmentServiceNameAzureRM
+    type: string
+    default: ''
+  - name: artifactPath
+    type: string
+    default: ''
+  - name: projectName
+    type: string
+    default: ''
+  - name: environmentName
+    type: string
+    default: ''
+
+    
+steps:
+  - task: ExtractFiles@1  
+    displayName: 'Extract Terraform Plan Artifact'
+    inputs:
+      archiveFilePatterns: '${{ parameters.artifactPath }}/$(Build.BuildId).tgz'
+      destinationFolder: ${{ parameters.workingDirectory }}/${{ parameters.environmentName }}
+      overwriteExistingFiles: true # Overwrite terraform files to recover the state from the PLAN stage
+      
+  - template: /pipelines/jobs/terraform/apply.yml
+    parameters:
+      workingDirectory: ${{ parameters.workingDirectory }}/${{ parameters.environmentName }}/provision    
+      environmentServiceNameAzureRM: ${{ parameters.environmentServiceNameAzureRM }}
+      tfPlanName: ${{ parameters.projectName }}_plan.tfplan
+      projectName: ${{ parameters.projectName }}
+      environmentName: ${{ parameters.environmentName }}

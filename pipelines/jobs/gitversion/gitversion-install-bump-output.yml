@@ -1,0 +1,20 @@
+parameters:
+  - name: workingDirectory
+    type: string
+    default: $(Build.SourcesDirectory)
+  - name: repositoryName
+    default: 'StockTracker'
+    type: string
+
+steps:
+  - checkout: self
+    clean: true
+    persistCredentials: true
+    fetchDepth: 0
+
+  - template: /pipelines/jobs/utils/git-fetch-unshallow.yml
+
+  - template: /pipelines/jobs/gitversion/gitversion-output-to-buildserver.yml   
+    parameters:
+      workingDirectory: ${{ parameters.workingDirectory }} 
+      repositoryName: ${{ parameters.repositoryName }}

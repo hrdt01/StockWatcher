@@ -1,0 +1,93 @@
+﻿@page "/login"
+@using StockTracker.Frontend.Identity.Contracts.Definition
+@using StockTracker.Frontend.Identity.Contracts.Implementation
+@using StockTracker.Frontend.Identity.Models
+
+
+@inject IAccountManagement Acct
+@inject JwtAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Login</PageTitle>
+
+<h1>Login</h1>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="alert alert-success">You're logged in as @context.User.Identity?.Name.</div>
+    </Authorized>
+    <NotAuthorized>
+        @foreach (var error in formResult.ErrorList)
+        {
+            <div class="alert alert-danger">@error</div>
+        }
+        <div class="row">
+            <div class="col">
+                <section>
+                    <EditForm Model="Input" method="post" OnValidSubmit="LoginUserAsync"
+                              FormName="login" Context="editform_context">
+                        <DataAnnotationsValidator />
+                        <h2>Use a local account to log in.</h2>
+                        <hr />
+                        <div class="form-floating mb-3">
+                            <InputText @bind-Value="Input.Username"
+                                       id="Input.Username"
+                                       class="form-control"
+                                       autocomplete="username"
+                                       aria-required="true"
+                                       placeholder="name@example.com" />
+                            <label for="Input.Username" class="form-label">
+                                Username
+                            </label>
+                            <ValidationMessage For="() => Input.Username"
+                                               class="text-danger" />
+                        </div>
+                        <div class="form-floating mb-3">
+                            <InputText type="password"
+                                       @bind-Value="Input.Password"
+                                       id="Input.Password"
+                                       class="form-control"
+                                       autocomplete="current-password"
+                                       aria-required="true"
+                                       placeholder="password" />
+                            <label for="Input.Password" class="form-label">
+                                Password
+                            </label>
+                            <ValidationMessage For="() => Input.Password"
+                                               class="text-danger" />
+                        </div>
+                        <div>
+                            <button type="submit" class="w-100 btn btn-lg btn-primary">
+                                Log in
+                            </button>
+                        </div>
+                    </EditForm>
+                </section>
+            </div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private FormResult formResult = new();
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    public async Task LoginUserAsync()
+    {
+        formResult = await Acct.LoginAsync(Input.Username, Input.Password);
+        if (string.IsNullOrEmpty(ReturnUrl))
+            ReturnUrl = "/";
+
+        if (formResult.Succeeded && !string.IsNullOrEmpty(ReturnUrl))
+        {
+            var token = await AuthStateProvider.GetCurrentTokenAsync();
+            await AuthStateProvider.SetCurrentTokenAsync(token);
+            Navigation.NavigateTo(ReturnUrl);
+        }
+    }
+}

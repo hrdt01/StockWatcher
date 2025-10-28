@@ -1,0 +1,31 @@
+parameters:
+- name: workingDirectory
+  type: string
+  default: $(Build.SourcesDirectory)
+- name: projectName
+  type: string
+  default: ''
+
+steps:
+- powershell: |
+    ## get the changed files
+    $files=$(git diff --name-only HEAD~1..HEAD)
+    $fileList=$files -split ' '
+    
+    Write-Host "##vso[task.setvariable variable=infraModified;isOutput=true]false"
+    For ($i=0; $i -lt $fileList.Length; $i++)
+    {
+      $name=$fileList[$i]  
+      echo "Checking $name file"
+
+      if ($name -like '${{ parameters.workingDirectory }}/*')  #if the path to check is a subfolder under a folder use "- like '*/<folder_name>/*'"
+      {
+        ##set the flag variable infraModified to true
+        echo "Setting variable infraModified value to true"
+        Write-Host "##vso[task.setvariable variable=infraModified;isOutput=true]true"
+        break
+      }
+    }
+  name: InfraChanges_${{parameters.projectName}}
+  displayName: 'Evaluate changes in infra files'
+  

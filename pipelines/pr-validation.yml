@@ -1,0 +1,380 @@
+parameters:
+  - name: provisionPath
+    type: string
+
+  - name: location
+    type: string
+
+  - name: serviceConnection
+    default: ''
+    type: string
+
+  - name: environmentName
+    default: ''
+    type: string
+    
+  - name: repositoryName
+    default: 'StockTracker'
+    type: string
+    
+  - name: buildConfiguration
+    default: 'Release'
+    type: string
+    
+
+stages:
+  - stage: Start
+    displayName: 'Initial run'
+    jobs:
+    - job: Initial_Job
+      displayName: 'Initial job'
+      steps:
+      - powershell: |
+          echo 'Triggering pipeline execution'
+        displayName: 'Initial job'
+    - job: Install_GitVersion_And_Bump_Version 
+      dependsOn:
+        - Initial_Job   
+      displayName: Install GitVersion and Bump Version
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+        - template: /pipelines/jobs/gitversion/gitversion-install-bump-output.yml     
+          parameters:
+            workingDirectory: $(Build.SourcesDirectory)
+            repositoryName: ${{ parameters.repositoryName }}
+        
+  # Shared Terraform stages          
+  - stage: Shared_Infrastructure
+    displayName: Shared Infrastructure    
+    dependsOn:
+      - Start   
+    variables:
+      infraRelativePath: 'provision'
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.semVer'] ]
+    jobs:
+    - job: Infrastructure_Evaluation
+      workspace:
+        clean: resources
+      displayName: 'Infrastructure Evaluation'
+      steps:
+      - checkout: self
+        clean: true
+        persistCredentials: true
+        fetchDepth: 0
+          
+      - template: /pipelines/templates/infra-evaluation.yml
+        parameters:
+          workingDirectory: '$(infraRelativePath)/shared'
+          projectName: shared
+
+    - job: Prepare_And_Create_Plan
+      dependsOn:
+        - Infrastructure_Evaluation
+      displayName: 'Validate Infrastructure and create Terraform Plan'
+      condition: and(succeeded(), eq(dependencies.Infrastructure_Evaluation.outputs['InfraChanges_shared.infraModified'], 'true'))
+      workspace:
+        clean: resources      
+      steps:
+      - template: /pipelines/templates/infra-ci.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/shared'
+          environmentName: ${{ parameters.environmentName }}
+          projectName: shared
+          provisionPath: ${{ parameters.provisionPath }}
+          serviceConnection: ${{ parameters.serviceConnection }}
+      - template: /pipelines/templates/infra-plan.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/shared'
+          environmentName: ${{ parameters.environmentName }}
+          provisionPath: ${{ parameters.provisionPath }}
+          projectName: shared  
+          serviceConnection: ${{ parameters.serviceConnection }}
+          planId: $(semVer)
+      
+  # Extractor Terraform stages          
+  - stage: Extractor_Infrastructure
+    displayName: Extractor function Infrastructure    
+    dependsOn:
+      - Start
+    variables:
+      infraRelativePath: 'provision'
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.semVer'] ]
+    jobs:
+    - job: Extractor_Infra_Evaluation
+      workspace:
+        clean: resources
+      displayName: 'Extractor Infrastructure Evaluation'
+      steps:
+      - checkout: self
+        clean: true
+        persistCredentials: true
+        fetchDepth: 0
+          
+      - template: /pipelines/templates/infra-evaluation.yml
+        parameters:
+          workingDirectory: '$(infraRelativePath)/extractor'
+          projectName: extractor
+
+    - job: Extractor_Prepare_And_Create_Plan
+      dependsOn:
+        - Extractor_Infra_Evaluation
+      displayName: 'Validate Extractor Infrastructure and create Terraform Plan'
+      condition: and(succeeded(), eq(dependencies.Extractor_Infra_Evaluation.outputs['InfraChanges_extractor.infraModified'], 'true'))
+      workspace:
+        clean: resources      
+      steps:
+      - template: /pipelines/templates/infra-ci.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/extractor'
+          environmentName: ${{ parameters.environmentName }}
+          projectName: extractor
+          provisionPath: ${{ parameters.provisionPath }}
+          serviceConnection: ${{ parameters.serviceConnection }}
+      - template: /pipelines/templates/infra-plan.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/extractor'
+          environmentName: ${{ parameters.environmentName }}
+          provisionPath: ${{ parameters.provisionPath }}
+          projectName: extractor  
+          serviceConnection: ${{ parameters.serviceConnection }}
+          planId: $(semVer)
+      
+  # Identity API Terraform stages          
+  - stage: Identity_Infrastructure
+    displayName: Identity API Infrastructure    
+    dependsOn:
+      - Start
+    variables:
+      infraRelativePath: 'provision'
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.semVer'] ]
+    jobs:
+    - job: Identity_Infra_Evaluation
+      workspace:
+        clean: resources
+      displayName: 'Identity Infrastructure Evaluation'
+      steps:
+      - checkout: self
+        clean: true
+        persistCredentials: true
+        fetchDepth: 0
+          
+      - template: /pipelines/templates/infra-evaluation.yml
+        parameters:
+          workingDirectory: '$(infraRelativePath)/identity'
+          projectName: identity
+
+    - job: Identity_Prepare_And_Create_Plan
+      dependsOn:
+        - Identity_Infra_Evaluation
+      displayName: 'Validate Identity Infrastructure and create Terraform Plan'
+      condition: and(succeeded(), eq(dependencies.Identity_Infra_Evaluation.outputs['InfraChanges_identity.infraModified'], 'true'))
+      workspace:
+        clean: resources      
+      steps:
+      - template: /pipelines/templates/infra-ci.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/identity'
+          environmentName: ${{ parameters.environmentName }}
+          projectName: identity
+          provisionPath: ${{ parameters.provisionPath }}
+          serviceConnection: ${{ parameters.serviceConnection }}
+      - template: /pipelines/templates/infra-plan.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/identity'
+          environmentName: ${{ parameters.environmentName }}
+          provisionPath: ${{ parameters.provisionPath }}
+          projectName: identity
+          serviceConnection: ${{ parameters.serviceConnection }}
+          planId: $(semVer)
+
+  # Extractor Function Build and analyze
+  - stage: Build_Extractor_Function
+    displayName: "Build Extractor function"
+    dependsOn:
+      - Start
+      - Extractor_Infrastructure
+      - Identity_Infrastructure
+    variables:
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.SemVer'] ]
+    jobs:
+    - job: Build_Solution
+      displayName: "Build Solution"
+      workspace:
+        clean: resources   
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+
+        - task: UseDotNet@2
+          displayName: 'Use .NET Core sdk'
+          inputs:
+            packageType: 'sdk'
+            version: '9.x'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Nuget Restore'
+          inputs:
+            command: "restore"
+            projects: '$(Build.SourcesDirectory)/*.sln'
+        
+        - task: DotNetCoreCLI@2
+          displayName: "Build Extractor function"
+          inputs:
+            commands: "build"
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*ExtractorFunction.csproj'
+            arguments: "--no-restore --configuration Release"
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Test Extractor'
+          inputs:
+            command: "test"
+            projects: |
+              $(Build.SourcesDirectory)/tests/consumer/**/*.csproj
+              !**/*FunctionalTests.csproj
+            arguments: '--configuration Release "--collect:\"XPlat Code Coverage;Format=opencover\""'
+            publishTestResults: true
+
+        - task: CopyFiles@2
+          displayName: 'Copy *.trx to $(Pipeline.Workspace)'
+          inputs:
+            sourceFolder: $(Agent.TempDirectory)
+            contents: |
+              *.trx
+              *.opencover.xml
+              **/*.opencover.xml
+            targetFolder: $(Pipeline.Workspace)/$(Build.BuildNumber)
+
+        - powershell: |
+            $listOfFilesCount = if ((Test-Path -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)") -eq $true) { (Get-ChildItem -Recurse -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)" -Include "*.opencover.xml" | Measure-Object).Count } else { 0 }
+       
+            $condition = ($listOfFilesCount -gt 0)
+            Write-Output "##vso[task.setvariable variable=FileExists]$condition"
+          displayName: 'Code report evaluation'
+
+        - script: |      
+            reportgenerator "-reports:$(Pipeline.Workspace)/$(Build.BuildNumber)/**/*.opencover.xml" "-targetDir:$(Build.SourcesDirectory)/TestResults/Coverage/Reports" -tag:$(Build.BuildNumber) "-reporttypes:Cobertura;HTMLInline;HTMLChart"
+          displayName: 'Generate Coverage Report' 
+          condition: eq(variables['FileExists'], True)
+          
+        - task: PublishCodeCoverageResults@1
+          displayName: 'Publish Code Coverage Results'
+          condition: eq(variables['FileExists'], True)
+          inputs:
+            codeCoverageTool: Cobertura
+            summaryFileLocation: $(Build.SourcesDirectory)/TestResults/Coverage/Reports/Cobertura.xml
+            reportDirectory: $(Build.SourcesDirectory)/TestResults/Coverage/Reports
+            failIfCoverageEmpty: false
+
+  # Consumers Build and analyze
+  - stage: Build_Consumers_Function
+    displayName: "Build Consumers applications"
+    dependsOn:
+      - Start
+      - Extractor_Infrastructure
+      - Build_Extractor_Function
+    jobs:
+    - job: Build_Identity_Solution
+      displayName: "Build Identity Solution"
+      workspace:
+        clean: resources
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+
+        - task: UseDotNet@2
+          displayName: 'Use .NET Core sdk'
+          inputs:
+            packageType: 'sdk'
+            version: '8.x'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Nuget Restore'
+          inputs:
+            command: "restore"
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Identity.Api.csproj'
+        
+        - task: DotNetCoreCLI@2
+          displayName: "Build Identity application"
+          inputs:
+            commands: "build"
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Identity.Api.csproj'
+            arguments: --no-restore --configuration Release"
+
+    - job: Build_Frontend_Solution
+      displayName: "Build Frontend Solution"
+      dependsOn:
+       - Build_Identity_Solution
+      workspace:
+        clean: resources   
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+
+        - task: UseDotNet@2
+          displayName: 'Use .NET Core sdk'
+          inputs:
+            packageType: 'sdk'
+            version: '9.x'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Nuget Restore'
+          inputs:
+            command: "restore"
+            projects: '$(Build.SourcesDirectory)/*.sln'
+        
+        - task: DotNetCoreCLI@2
+          displayName: "Build Frontend application"
+          inputs:
+            commands: "build"
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Frontend.csproj'
+            arguments: "--no-restore --configuration $(buildConfiguration)"
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Test Frontend'
+          inputs:
+            command: "test"
+            projects: |
+              $(Build.SourcesDirectory)/tests/consumer/**/*.csproj
+              !**/*FunctionalTests.csproj
+            arguments: '--configuration Release "--collect:\"XPlat Code Coverage;Format=opencover\""'
+            publishTestResults: true
+
+        - task: CopyFiles@2
+          displayName: 'Copy *.trx to $(Pipeline.Workspace)'
+          inputs:
+            sourceFolder: $(Agent.TempDirectory)
+            contents: |
+              *.trx
+              *.opencover.xml
+              **/*.opencover.xml
+            targetFolder: $(Pipeline.Workspace)/$(Build.BuildNumber)
+
+        - powershell: |
+            $listOfFilesCount = if ((Test-Path -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)") -eq $true) { (Get-ChildItem -Recurse -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)" -Include "*.opencover.xml" | Measure-Object).Count } else { 0 }
+       
+            $condition = ($listOfFilesCount -gt 0)
+            Write-Output "##vso[task.setvariable variable=FileExists]$condition"
+          displayName: 'Code report evaluation'
+
+        - script: |      
+            reportgenerator "-reports:$(Pipeline.Workspace)/$(Build.BuildNumber)/**/*.opencover.xml" "-targetDir:$(Build.SourcesDirectory)/TestResults/Coverage/Reports" -tag:$(Build.BuildNumber) "-reporttypes:Cobertura;HTMLInline;HTMLChart"
+          displayName: 'Generate Coverage Report' 
+          condition: eq(variables['FileExists'], True)
+          
+        - task: PublishCodeCoverageResults@1
+          displayName: 'Publish Code Coverage Results'
+          condition: eq(variables['FileExists'], True)
+          inputs:
+            codeCoverageTool: Cobertura
+            summaryFileLocation: $(Build.SourcesDirectory)/TestResults/Coverage/Reports/Cobertura.xml
+            reportDirectory: $(Build.SourcesDirectory)/TestResults/Coverage/Reports
+            failIfCoverageEmpty: false

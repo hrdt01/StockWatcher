@@ -1,0 +1,326 @@
+﻿@page "/tracker"
+@attribute [Authorize(Roles = "Admin,Viewer")]
+
+@using System.Collections.ObjectModel
+@using System.Globalization
+@using StockTracker.Frontend.Identity.Contracts.Implementation
+@using StockTracker.Frontend.Identity.Models
+@using StockTracker.Frontend.Services.Definition
+@using StockTracker.Frontend.Services.Models
+@using JustifyContent = Radzen.JustifyContent
+@using Orientation = Radzen.Orientation
+@using PointStyle = PSC.Blazor.Components.Chartjs.Models.Common.PointStyle
+@using Tooltip = PSC.Blazor.Components.Chartjs.Models.Common.Tooltip
+
+@inject IApiConsumer apiConsumer;
+@inject JwtAuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Stock tracker</PageTitle>
+
+<h1>Stock tracker</h1>
+
+<p>Selecciona un ticker y un rango de fechas para poder mostrar informacion</p>
+
+@if (!AvailableTickers.Any())
+{
+    <p>
+        <em>Loading...</em>
+    </p>
+}
+else
+{
+    <RadzenCard class="rz-p-0">
+        <RadzenStack Orientation="Orientation.Vertical" Gap="20px" JustifyContent="JustifyContent.Start"
+        AlignItems="AlignItems.Stretch" Wrap="FlexWrap.Wrap">
+            <RadzenCard class="rz-p-1 rz-background-color-base-50 rz-color-info rz-text-align-left">
+
+                <RadzenAccordion Multiple="true">
+                    <Items>
+                        <RadzenAccordionItem Text="Búsqueda" Icon="search">
+
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="4px" JustifyContent="JustifyContent.SpaceBetween"
+                            AlignItems="AlignItems.Start" Wrap="FlexWrap.Wrap">
+                                <RadzenLabel Text="Selecciona un ticker" Component="ddTickers"/>
+                                <RadzenDropDown Name="ddTickers" Style="width: 50%;"
+                                TValue="string"
+                                TextProperty="@nameof(ComboOption.Text)" ValueProperty="@nameof(ComboOption.Value)"
+                                InputAttributes="@(new Dictionary<string, object> {{"aria-label", "tickers"}})"
+                                Data="@AvailableTickers" Size="ButtonSize.Small"
+                                FilterAsYouType="false" Multiple="false"
+                                Change="OnSymbolTickerSelected"/>
+                                <RadzenLabel Visible="@(anySymbolSelected)" Text="Selecciona un rango de fechas" Component="cldDates" />
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start" Gap="4px" Visible="@(anySymbolSelected)">
+                                    <FluentCalendar Name="cldDates" Disabled="@calendarEnabled" Style="width: 100%"
+                                    DisabledDateFunc="DisableNotSelectableDate"
+                                    SelectMode="CalendarSelectMode.Range"
+                                    SelectedDatesChanged="OnDatesSelected">
+                                    </FluentCalendar>
+                                </RadzenStack>
+                            </RadzenStack>
+                            <RadzenStack Orientation="Orientation.Vertical" Gap="4px" Visible="@(anySymbolSelected)">
+                                <RadzenButton Icon="search" Text="Get Info" BusyText="...Loadding" Disabled="@(!buttonEnabled)"
+                                ButtonStyle="ButtonStyle.Base" Click="GetInfo"/>
+                            </RadzenStack>
+                        </RadzenAccordionItem>
+
+                        <RadzenStack Orientation="Orientation.Vertical" Gap="4px">
+                            @if (ChartData != null && ChartData.Any())
+                            {
+                                <RadzenAccordionItem Text="Al Cierre" Icon="account_balance_wallet">
+                                    <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap"
+                                    Style="height: 100%;">
+                                        <Chart Config="_configChartClose" @ref="ChartClose" Width="90%" Height="90%"></Chart>
+                                    </RadzenStack>
+                                </RadzenAccordionItem>
+                            }
+                            @if (AvailableKpis != null && AvailableKpis.Any())
+                            {
+                                <RadzenAccordionItem Text="Kpis" Icon="search_insights">
+                                    <RadzenStack Orientation="Orientation.Horizontal" Gap="4px">
+                                        <RadzenLabel Text="Selecciona un kpi:" Component="ddKpis" />
+                                        <RadzenRadioButtonList Data="@AvailableKpis"
+                                                               @bind-Value=@selectedKpi TValue="string"
+                                                               TextProperty="@nameof(ComboOption.Text)"
+                                                               ValueProperty="@nameof(ComboOption.Value)"
+                                                               Change="OnSelectedKpi" />
+                                    </RadzenStack>
+                                    <RadzenLabel Text="@kpiExplanation" />
+                                    <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap"
+                                    Style="height: 100%;">
+                                        @if (ChartKpiData != null && ChartKpiData.KpiValues.Any())
+                                        {
+                                            <Chart Config="_configChartKpi" @ref="ChartKpi" Width="90%" Height="90%"></Chart>
+                                        }
+                                    </RadzenStack>
+                                </RadzenAccordionItem>
+                            }
+                        </RadzenStack>
+
+                    </Items>
+                </RadzenAccordion>
+            </RadzenCard>
+        </RadzenStack>
+    </RadzenCard>
+}
+
+@code {
+
+    public class ComboOption
+    {
+        public string Text { get; set; }
+        public string Value { get; set; }
+    }
+
+    private List<ComboOption> AvailableTickers = new();
+    private List<ComboOption> AvailableKpis = new();
+    private List<DateTime> selectableDates = new();
+    string? selectedSymbol = string.Empty;
+    string? selectedKpi;
+    string? kpiExplanation;
+    readonly List<DateTime> selectedDates = new();
+    private ReadOnlyDictionary<string, string> _kpisBySymbol;
+
+    bool anySymbolSelected => !string.IsNullOrWhiteSpace(selectedSymbol);
+    bool calendarEnabled => selectableDates.Any();
+    bool buttonEnabled => selectedDates.Count > 1 && anySymbolSelected;
+
+    private LineChartConfig? _configChartClose;
+    private Chart? ChartClose = new();
+    private LineChartConfig? _configChartKpi;
+    private Chart? ChartKpi = new();
+
+    public List<StockInfoChartModel> ChartData { get; set; }
+    public StockKpiResponse ChartKpiData { get; set; }
+
+    private TokenModel? token;
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        token = await AuthStateProvider.GetCurrentTokenAsync();
+
+        ChartData = new List<StockInfoChartModel>();
+        var retrievedSymbols = await apiConsumer.GetSymbols(tokenModel: token);
+        foreach (var symbol in retrievedSymbols)
+        {
+            AvailableTickers.Add(new ComboOption { Text = symbol, Value = symbol });
+        }
+    }
+
+    private void ConfigChartCloseJs()
+    {
+        _configChartClose = new LineChartConfig
+        {
+            Options = new Options
+            {
+                RegisterDataLabels = true,
+                MaintainAspectRatio = true,
+                Responsive = true,
+                Plugins = new Plugins
+                {
+                    Zoom = new Zoom
+                    {
+                        Enabled = true,
+                        Mode = "xy",
+                        ZoomOptions = new ZoomOptions
+                        {
+                            Wheel = new Wheel
+                            {
+                                Enabled = true
+                            }
+                        }
+                    },
+                    DataLabels = new DataLabels
+                    {
+                        Align = DatalabelsAlign.Start,
+                        Anchor = DatalabelsAnchor.Start
+                    },
+                    Tooltip = new Tooltip()
+                    {
+                        Callbacks = new Callbacks()
+                        {
+                            Label = context => { return BuildTooltipChartClose(context); }
+                        }
+                    }
+                }
+            }
+        };
+
+        _configChartClose.Data.Labels =
+            selectedDates.Select(date => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).ToList();
+    }
+
+    private string[] BuildTooltipChartClose(CallbackGenericContext ctx)
+    {
+        var data = ChartData[ctx.DataIndex];
+        var openText = $"Open: {data.Open.Value:#.000}";
+        var closeText = $"Close: {data.Close.Value:#.000}";
+        var highText = $"High: {data.High.Value:#.000}";
+        var lowText = $"Low: {data.Low.Value:#.000}";
+        return [openText, closeText, highText, lowText];
+    }
+    private void ConfigChartKpiJs()
+    {
+        _configChartKpi = new LineChartConfig
+        {
+            Options = new Options
+            {
+                RegisterDataLabels = true,
+                MaintainAspectRatio = true,
+                Responsive = true,
+                Plugins = new Plugins
+                {
+                    Zoom = new Zoom
+                    {
+                        Enabled = true,
+                        Mode = "xy",
+                        ZoomOptions = new ZoomOptions
+                        {
+                            Wheel = new Wheel
+                            {
+                                Enabled = true
+                            }
+                        }
+                    },
+                    DataLabels = new DataLabels
+                    {
+                        Align = DatalabelsAlign.Start,
+                        Anchor = DatalabelsAnchor.Start
+                    }
+                }
+            }
+        };
+    }
+
+    private async Task OnSymbolTickerSelected(object selectedValue)
+    {
+        CleanUpForm();
+        selectedSymbol = Convert.ToString(selectedValue);
+        var symbolTicker = selectedSymbol;
+        var result = await apiConsumer.GetDatesBySymbol(symbolTicker, tokenModel: token);
+        selectableDates.AddRange(result.Select(date => DateTime.Parse(date)));
+    }
+
+    private void CleanUpForm()
+    {
+        selectedSymbol = string.Empty;
+        selectedDates.Clear();
+        selectableDates.Clear();
+        selectedKpi = null;
+        AvailableKpis.Clear();
+        kpiExplanation = string.Empty;
+    }
+
+    private bool DisableNotSelectableDate(DateTime source)
+    {
+        return !selectableDates.Contains(source);
+    }
+
+    private void OnDatesSelected(IEnumerable<DateTime> source)
+    {
+        selectedDates.Clear();
+        selectedDates.AddRange(source);
+    }
+
+    private async Task GetInfo()
+    {
+        var symbol = selectedSymbol;
+        var dateRange = selectedDates;
+        var result =
+            await apiConsumer.GetInfoBySymbolDateRange(
+                symbol,
+                dateRange.First().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                dateRange.Last().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), tokenModel: token);
+        ChartData.Clear();
+        ChartData.AddRange(result.TradeEvents.ToChartModel());
+
+        ConfigChartCloseJs();
+        _configChartClose.Data.Datasets.Clear();
+        _configChartClose.Data.Datasets.Add(new LineDataset
+        {
+            Label = symbol,
+            Data = ChartData.Select(item => item.Close).ToList(),
+            BorderColor = "rgb(255, 99, 132)",
+            Tension = 0.1M,
+            Fill = false,
+            PointRadius = 15,
+            PointStyle = PointStyle.Dash
+        });
+
+        _kpisBySymbol = await apiConsumer.GetKpisBySymbol(symbol, tokenModel: token);
+        AvailableKpis.Clear();
+        foreach (var kpi in _kpisBySymbol)
+        {
+            AvailableKpis.Add(new ComboOption { Text = kpi.Key.Split("_")[1], Value = kpi.Key });
+        }
+    }
+
+    private async Task OnSelectedKpi(object selectedValue)
+    {
+        selectedKpi = Convert.ToString(selectedValue);
+        _kpisBySymbol.TryGetValue(selectedKpi, out kpiExplanation);
+        var result =
+            await apiConsumer.GetKpisBySymbolDateRange(
+                selectedKpi,
+                selectedDates.First().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                selectedDates.Last().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), tokenModel: token);
+
+        ChartKpiData = result;
+        if (ChartKpiData.KpiValues.Any())
+        {
+            ConfigChartKpiJs();
+            _configChartKpi.Data.Labels =
+                ChartKpiData.KpiValues.Select(date => date.When).ToList();
+            _configChartKpi.Data.Datasets.Clear();
+            _configChartKpi.Data.Datasets.Add(new LineDataset
+            {
+                Label = ChartKpiData.SymbolKpi,
+                    Data = ChartKpiData.KpiValues.Select(item => (decimal?)decimal.Round(item.Result.Value, 4, MidpointRounding.AwayFromZero)).ToList(),
+                BorderColor = "rgb(255, 99, 132)",
+                Tension = 0.1M,
+                Fill = false,
+                PointRadius = 15,
+                PointStyle = PointStyle.Star
+            });
+        }
+    }
+}

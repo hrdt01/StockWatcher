@@ -1,0 +1,27 @@
+parameters:
+  - name: workingDirectory
+    type: string
+  - name: environmentServiceNameAzureRM
+    type: string
+  - name: tfPlanName
+    type: string
+    default: ''  
+  - name: projectName
+    type: string
+    default: ''
+  - name: environmentName
+    type: string   
+
+steps:
+- task: TerraformInstaller@1
+  displayName: "Install Terraform $(TerraformVersion)"
+  inputs:
+    terraformVersion: $(TerraformVersion)
+- task: TerraformTaskV4@4
+  displayName: 'Terraform : azurerm apply'
+  inputs:
+    provider: 'azurerm'
+    command: 'apply'  
+    environmentServiceNameAzureRM: ${{ parameters.environmentServiceNameAzureRM }} # Service Connection Name for Apply
+    workingDirectory: ${{ parameters.workingDirectory }}/${{parameters.projectName}}
+    commandOptions: ${{ parameters.tfPlanName }}

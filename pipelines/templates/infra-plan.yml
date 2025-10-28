@@ -1,0 +1,47 @@
+parameters:
+  - name: terraformPath
+    type: string
+  - name: provisionPath
+    type: string
+  - name: environmentName
+    type: string
+  - name: projectName
+    type: string
+    default: ''
+  - name: serviceConnection
+    default: ''
+    type: string
+  - name: planId
+    type: string
+    default: ''
+
+steps:
+  - template: /pipelines/jobs/terraform/plan.yml
+    parameters:
+      terraformPath: $(Build.SourcesDirectory)/${{ parameters.environmentName }}/${{ parameters.provisionPath }}/${{ parameters.projectName }}
+      environmentName: ${{ parameters.environmentName }}
+      toolName: ${{ parameters.projectName }}
+      environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+      tfPlanName: $(Build.SourcesDirectory)/${{ parameters.environmentName }}/${{ parameters.provisionPath }}/${{ parameters.projectName }}/${{ parameters.projectName }}_plan.tfplan
+
+  - template: /pipelines/jobs/terraform/show-plan.yml
+    parameters:
+      terraformPath: $(Build.SourcesDirectory)/${{ parameters.environmentName }}/${{ parameters.provisionPath }}/${{ parameters.projectName }}
+      environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+      tfPlanName: $(Build.SourcesDirectory)/${{ parameters.environmentName }}/${{ parameters.provisionPath }}/${{ parameters.projectName }}/${{ parameters.projectName }}_plan.tfplan
+      toolName: ${{ parameters.projectName }}
+
+  # Publish the terraform plan as artifact to be used later by the apply stage
+  - task: ArchiveFiles@2
+    displayName: 'Create Plan Artifact'
+    inputs:      
+      rootFolderOrFile: '$(Build.SourcesDirectory)/${{ parameters.environmentName }}'
+      includeRootFolder: false
+      archiveType: 'tar'
+      tarCompression: 'gz'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).tgz'
+      replaceExistingArchive: true
+
+  - publish: '$(Build.ArtifactStagingDirectory)'
+    displayName: 'Publish Plan Artifact'
+    artifact: ${{ parameters.projectName }}_${{ parameters.planId }}-tfplan

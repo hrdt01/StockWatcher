@@ -1,0 +1,16 @@
+parameters:
+  - name: workingDirectory
+    type: string
+
+steps:
+- task: qetza.replacetokens.replacetokens-task.replacetokens@6
+  displayName: 'Replace tokens in *.tf *.tfvars *.sh'
+  inputs:    
+    sources: |
+      **/*.tf
+      **/*.tfvars
+      **/*.sh
+    root: ${{ parameters.workingDirectory }}
+    tokenPattern: doubleunderscores
+    logLevel: debug
+    missingVarAction: keep

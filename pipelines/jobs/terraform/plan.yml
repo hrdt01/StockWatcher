@@ -1,0 +1,28 @@
+parameters:
+  - name: terraformPath
+    type: string
+  - name: environmentServiceNameAzureRM
+    type: string
+  - name: environmentName
+    type: string   
+  - name: toolName
+    type: string
+    default: ''     
+  - name: tfPlanName
+    type: string
+    default: ''    
+
+steps:
+- task: TerraformTaskV4@4
+  displayName: 'Terraform: plan for ${{ parameters.toolName }} tool'
+  inputs:
+    provider: 'azurerm'
+    command: 'plan'  
+    workingDirectory: '${{ parameters.terraformPath }}'
+    commandOptions: '-out=${{ parameters.tfPlanName }} -var-file="tfvars/${{ parameters.toolName }}.tfvars"'
+    environmentServiceNameAzureRM: ${{ parameters.environmentServiceNameAzureRM }} # Service Connection Name for Apply
+    backendServiceArm: $(TerraformBackendServiceConnectionName) # Service Connection Name for Backend
+    backendAzureRmResourceGroupName: $(TerraformBackendResourceGroupName) # Resource Group Name for Backend
+    backendAzureRmStorageAccountName: $(TerraformBackendAzureRmStorageAccountName) # Storage AccountName for Backend
+    backendAzureRmContainerName: $(TerraformBackendAzureRmContainerName) # Container Name for Backend
+    backendAzureRmKey: ${{ parameters.environmentName }}/${{ parameters.toolName }}.tfstate # State file for Backend

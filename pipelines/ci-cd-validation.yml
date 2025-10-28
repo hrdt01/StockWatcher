@@ -1,0 +1,772 @@
+parameters:
+  - name: provisionPath
+    type: string
+
+  - name: location
+    type: string
+
+  - name: serviceConnection
+    default: ''
+    type: string
+
+  - name: environmentName
+    default: ''
+    type: string
+
+  - name: repositoryName
+    default: 'StockTracker'
+    type: string
+
+  - name: resourceGroupName
+    default: 'rg-stocktracker'
+    type: string
+
+
+stages:
+  - stage: Start
+    displayName: "Initial pipeline setup"
+    jobs:
+      - job: Install_GitVersion_And_Bump_Version
+        displayName: Install GitVersion and Bump Version
+        workspace:
+          clean: all
+        steps:
+          - checkout: self
+            clean: true
+            persistCredentials: true
+            fetchDepth: 0
+          - template: /pipelines/jobs/gitversion/gitversion-install-bump-output.yml     
+            parameters:
+              workingDirectory: $(Build.SourcesDirectory)
+              repositoryName: ${{ parameters.repositoryName }}  
+        
+  # Shared Terraform stages          
+  - stage: Shared_Infrastructure
+    displayName: Shared Infrastructure    
+    dependsOn:
+      - Start
+    variables:
+      infraRelativePath: 'provision'
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.semVer'] ]
+    jobs:
+    - job: Infrastructure_Evaluation
+      workspace:
+        clean: resources
+      displayName: 'Infrastructure Evaluation'
+      steps:
+      - checkout: self
+        clean: true
+        persistCredentials: true
+        fetchDepth: 0
+          
+      - template: /pipelines/templates/infra-evaluation.yml
+        parameters:
+          workingDirectory: '$(infraRelativePath)/shared'
+          projectName: shared
+
+    - job: Prepare_And_Create_Plan
+      dependsOn:
+        - Infrastructure_Evaluation
+      displayName: 'Validate Infrastructure and create Terraform Plan'
+      condition: and(succeeded(), eq(dependencies.Infrastructure_Evaluation.outputs['InfraChanges_shared.infraModified'], 'true'))
+      workspace:
+        clean: resources      
+      steps:
+      - template: /pipelines/templates/infra-ci.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/shared'
+          environmentName: ${{ parameters.environmentName }}
+          projectName: shared
+          provisionPath: ${{ parameters.provisionPath }}
+          serviceConnection: ${{ parameters.serviceConnection }}
+      - template: /pipelines/templates/infra-plan.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/shared'
+          environmentName: ${{ parameters.environmentName }}
+          provisionPath: ${{ parameters.provisionPath }}
+          projectName: shared  
+          serviceConnection: ${{ parameters.serviceConnection }}
+          planId: $(semVer)
+
+  - stage: Shared_Infrastructure_Installation
+    displayName: Install Shared Infrastructure Code
+    dependsOn:
+      - Shared_Infrastructure
+      - Start
+    variables:
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.semVer'] ]
+    jobs:
+      - deployment: Install_Infrastructure_Shared
+        timeoutInMinutes: 120
+        condition: and(eq(variables['Build.SourceBranch'], 'refs/heads/master'), eq(stageDependencies.Shared_Infrastructure.Infrastructure_Evaluation.outputs['InfraChanges_Shared.infraModified'], 'true')) 
+        environment: $(AzureSubscriptionName)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: "shared_$(semVer)-tfplan"
+
+                - template: /pipelines/templates/infra-apply.yml
+                  parameters:
+                    workingDirectory: "$(Pipeline.Workspace)"
+                    environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+                    artifactPath: "$(Pipeline.Workspace)/shared_$(semVer)-tfplan"
+                    projectName: shared
+                    environmentName: $(AzureSubscriptionName)
+        
+  # Extractor Terraform stages          
+  - stage: Extractor_Infrastructure
+    displayName: Extractor function Infrastructure    
+    dependsOn:
+      - Start
+    variables:
+      infraRelativePath: 'provision'
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.semVer'] ]
+    jobs:
+    - job: Extractor_Infra_Evaluation
+      workspace:
+        clean: resources
+      displayName: 'Extractor Infrastructure Evaluation'
+      steps:
+      - checkout: self
+        clean: true
+        persistCredentials: true
+        fetchDepth: 0
+          
+      - template: /pipelines/templates/infra-evaluation.yml
+        parameters:
+          workingDirectory: '$(infraRelativePath)/extractor'
+          projectName: extractor
+
+    - job: Extractor_Prepare_And_Create_Plan
+      dependsOn:
+        - Extractor_Infra_Evaluation
+      displayName: 'Validate Extractor Infrastructure and create Terraform Plan'
+      condition: and(succeeded(), eq(dependencies.Extractor_Infra_Evaluation.outputs['InfraChanges_extractor.infraModified'], 'true'))
+      workspace:
+        clean: resources      
+      steps:
+      - template: /pipelines/templates/infra-ci.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/extractor'
+          environmentName: ${{ parameters.environmentName }}
+          projectName: extractor
+          provisionPath: ${{ parameters.provisionPath }}
+          serviceConnection: ${{ parameters.serviceConnection }}
+      - template: /pipelines/templates/infra-plan.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/extractor'
+          environmentName: ${{ parameters.environmentName }}
+          provisionPath: ${{ parameters.provisionPath }}
+          projectName: extractor  
+          serviceConnection: ${{ parameters.serviceConnection }}
+          planId: $(semVer)
+
+  - stage: Extractor_Infrastructure_Installation
+    displayName: Install Extractor Infrastructure Code
+    dependsOn:
+      - Extractor_Infrastructure
+      - Start
+    variables:
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.semVer'] ]
+    jobs:
+      - deployment: Install_Infrastructure_Extractor
+        timeoutInMinutes: 120
+        condition: and(startsWith(variables['Build.SourceBranch'], 'refs/heads/release'), eq(stageDependencies.Extractor_Infrastructure.Extractor_Infra_Evaluation.outputs['InfraChanges_extractor.infraModified'], 'true')) 
+        environment: $(AzureSubscriptionName)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: "extractor_$(semVer)-tfplan"
+
+                - template: /pipelines/templates/infra-apply.yml
+                  parameters:
+                    workingDirectory: "$(Pipeline.Workspace)"
+                    environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+                    artifactPath: "$(Pipeline.Workspace)/extractor_$(semVer)-tfplan"
+                    projectName: extractor
+                    environmentName: $(AzureSubscriptionName)
+      
+  # Identity API Terraform stages          
+  - stage: Identity_Infrastructure
+    displayName: Identity API Infrastructure    
+    dependsOn:
+      - Start
+    variables:
+      infraRelativePath: 'provision'
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.semVer'] ]
+    jobs:
+    - job: Identity_Infra_Evaluation
+      workspace:
+        clean: resources
+      displayName: 'Identity Infrastructure Evaluation'
+      steps:
+      - checkout: self
+        clean: true
+        persistCredentials: true
+        fetchDepth: 0
+          
+      - template: /pipelines/templates/infra-evaluation.yml
+        parameters:
+          workingDirectory: '$(infraRelativePath)/identity'
+          projectName: identity
+
+    - job: Identity_Prepare_And_Create_Plan
+      dependsOn:
+        - Identity_Infra_Evaluation
+      displayName: 'Validate Identity Infrastructure and create Terraform Plan'
+      condition: and(succeeded(), eq(dependencies.Identity_Infra_Evaluation.outputs['InfraChanges_identity.infraModified'], 'true'))
+      workspace:
+        clean: resources      
+      steps:
+      - template: /pipelines/templates/infra-ci.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/identity'
+          environmentName: ${{ parameters.environmentName }}
+          projectName: identity
+          provisionPath: ${{ parameters.provisionPath }}
+          serviceConnection: ${{ parameters.serviceConnection }}
+      - template: /pipelines/templates/infra-plan.yml
+        parameters:
+          terraformPath: '$(Build.SourcesDirectory)/$(infraRelativePath)/identity'
+          environmentName: ${{ parameters.environmentName }}
+          provisionPath: ${{ parameters.provisionPath }}
+          projectName: identity
+          serviceConnection: ${{ parameters.serviceConnection }}
+          planId: $(semVer)
+
+  - stage: Identity_Infrastructure_Installation
+    displayName: Install Identity Infrastructure Code
+    dependsOn:
+      - Identity_Infrastructure
+      - Start
+    variables:
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.semVer'] ]
+    jobs:
+      - deployment: Install_Infrastructure_Identity
+        timeoutInMinutes: 120
+        condition: and(startsWith(variables['Build.SourceBranch'], 'refs/heads/release'), eq(stageDependencies.Identity_Infrastructure.Identity_Infra_Evaluation.outputs['InfraChanges_identity.infraModified'], 'true')) 
+        environment: $(AzureSubscriptionName)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: "identity_$(semVer)-tfplan"
+
+                - template: /pipelines/templates/infra-apply.yml
+                  parameters:
+                    workingDirectory: "$(Pipeline.Workspace)"
+                    environmentServiceNameAzureRM: ${{ parameters.serviceConnection }}
+                    artifactPath: "$(Pipeline.Workspace)/identity_$(semVer)-tfplan"
+                    projectName: identity
+                    environmentName: $(AzureSubscriptionName)
+      
+  # Extractor Function Build and analyze
+  - stage: Build_Extractor_Function
+    displayName: "Build Extractor function"
+    dependsOn:
+      - Start
+      - Extractor_Infrastructure_Installation
+      - Identity_Infrastructure_Installation
+    variables:
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.SemVer'] ]
+    jobs:
+    - job: Build_Solution
+      displayName: "Build Solution"
+      workspace:
+        clean: resources   
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+
+        - task: UseDotNet@2
+          displayName: 'Use .NET Core sdk'
+          inputs:
+            packageType: 'sdk'
+            version: '9.x'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Nuget Restore'
+          inputs:
+            command: "restore"
+            projects: '$(Build.SourcesDirectory)/*.sln'
+        
+        - task: DotNetCoreCLI@2
+          displayName: "Build Extractor function"
+          inputs:
+            commands: "build"
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*ExtractorFunction.csproj'
+            arguments: "--no-restore --configuration Release"
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Test Extractor'
+          inputs:
+            command: "test"
+            projects: |
+              $(Build.SourcesDirectory)/tests/consumer/**/*.csproj
+              !**/*FunctionalTests.csproj
+            arguments: '--configuration Release "--collect:\"XPlat Code Coverage;Format=opencover\""'
+            publishTestResults: true
+
+        - task: CopyFiles@2
+          displayName: 'Copy *.trx to $(Pipeline.Workspace)'
+          inputs:
+            sourceFolder: $(Agent.TempDirectory)
+            contents: |
+              *.trx
+              *.opencover.xml
+              **/*.opencover.xml
+            targetFolder: $(Pipeline.Workspace)/$(Build.BuildNumber)
+
+        - powershell: |
+            $listOfFilesCount = if ((Test-Path -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)") -eq $true) { (Get-ChildItem -Recurse -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)" -Include "*.opencover.xml" | Measure-Object).Count } else { 0 }
+       
+            $condition = ($listOfFilesCount -gt 0)
+            Write-Output "##vso[task.setvariable variable=FileExists]$condition"
+          displayName: 'Code report evaluation'
+
+        - script: |      
+            reportgenerator "-reports:$(Pipeline.Workspace)/$(Build.BuildNumber)/**/*.opencover.xml" "-targetDir:$(Build.SourcesDirectory)/TestResults/Coverage/Reports" -tag:$(Build.BuildNumber) "-reporttypes:Cobertura;HTMLInline;HTMLChart"
+          displayName: 'Generate Coverage Report' 
+          condition: eq(variables['FileExists'], True)
+          
+        - task: PublishCodeCoverageResults@1
+          displayName: 'Publish Code Coverage Results'
+          condition: eq(variables['FileExists'], True)
+          inputs:
+            codeCoverageTool: Cobertura
+            summaryFileLocation: $(Build.SourcesDirectory)/TestResults/Coverage/Reports/Cobertura.xml
+            reportDirectory: $(Build.SourcesDirectory)/TestResults/Coverage/Reports
+            failIfCoverageEmpty: false
+
+    - job: PublishExtractorFunction
+      displayName: "Publish Extractor function artifact"
+      condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/release'))
+      dependsOn: Build_Solution
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+
+        - task: UseDotNet@2
+          displayName: 'Use .NET Core sdk'
+          inputs:
+            packageType: 'sdk'
+            version: '9.x'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Nuget Restore'
+          inputs:
+            command: restore
+            projects: '$(Build.SourcesDirectory)/*.sln'
+
+        - task: qetza.replacetokens.replacetokens-task.replacetokens@6
+          displayName: 'Replace tokens in appsettings.json'
+          inputs:    
+            sources: |
+              **/*.json
+            root: '$(Build.SourcesDirectory)/src/consumer/StockTracker.ExtractorFunction/'
+            tokenPattern: doubleunderscores
+            logLevel: debug
+            missingVarAction: keep
+
+        - task: DotNetCoreCLI@2
+          displayName: "Publish Extractor function Artifact"
+          inputs:
+            command: publish
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*ExtractorFunction.csproj'
+            arguments: '--configuration Release --output $(Build.ArtifactStagingDirectory)/$(buildConfiguration)/extractor -r linux-x64'
+            publishWebProjects: false
+            zipAfterPublish: false
+            modifyOutputPath: false
+
+        - task: ArchiveFiles@2
+          displayName: "Archive files"
+          inputs:
+            rootFolderOrFile: "$(Build.ArtifactStagingDirectory)/$(buildConfiguration)/extractor"
+            includeRootFolder: false
+            archiveFile: "$(System.DefaultWorkingDirectory)/extractor_$(semVer).zip"
+
+        - publish: "$(System.DefaultWorkingDirectory)/extractor_$(semVer).zip"
+          displayName: "Publish function binaries"
+          artifact: extractor_binaries
+
+  # Identity API Build and analyze
+  - stage: Build_Identity_Application
+    displayName: "Build Identity API application"
+    dependsOn:
+      - Start
+      - Extractor_Infrastructure_Installation
+      - Identity_Infrastructure_Installation
+    variables:
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.SemVer'] ]
+    jobs:
+    - job: Build_Identity_Solution
+      displayName: "Build Identity Solution"
+      workspace:
+        clean: resources   
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+
+        - task: UseDotNet@2
+          displayName: 'Use .NET Core sdk'
+          inputs:
+            packageType: 'sdk'
+            version: '8.x'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Nuget Restore'
+          inputs:
+            command: "restore"
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Identity.Api.csproj'
+        
+        - task: DotNetCoreCLI@2
+          displayName: "Build Identity application"
+          inputs:
+            commands: "build"
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Identity.Api.csproj'
+            arguments: --no-restore --configuration Release"
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Test Frontend'
+          inputs:
+            command: "test"
+            projects: |
+              $(Build.SourcesDirectory)/tests/consumer/**/*.csproj
+              !**/*FunctionalTests.csproj
+            arguments: '--configuration Release "--collect:\"XPlat Code Coverage;Format=opencover\""'
+            publishTestResults: true
+
+        - task: CopyFiles@2
+          displayName: 'Copy *.trx to $(Pipeline.Workspace)'
+          inputs:
+            sourceFolder: $(Agent.TempDirectory)
+            contents: |
+              *.trx
+              *.opencover.xml
+              **/*.opencover.xml
+            targetFolder: $(Pipeline.Workspace)/$(Build.BuildNumber)
+
+        - powershell: |
+            $listOfFilesCount = if ((Test-Path -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)") -eq $true) { (Get-ChildItem -Recurse -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)" -Include "*.opencover.xml" | Measure-Object).Count } else { 0 }
+       
+            $condition = ($listOfFilesCount -gt 0)
+            Write-Output "##vso[task.setvariable variable=FileExists]$condition"
+          displayName: 'Code report evaluation'
+
+        - script: |      
+            reportgenerator "-reports:$(Pipeline.Workspace)/$(Build.BuildNumber)/**/*.opencover.xml" "-targetDir:$(Build.SourcesDirectory)/TestResults/Coverage/Reports" -tag:$(Build.BuildNumber) "-reporttypes:Cobertura;HTMLInline;HTMLChart"
+          displayName: 'Generate Coverage Report' 
+          condition: eq(variables['FileExists'], True)
+          
+        - task: PublishCodeCoverageResults@1
+          displayName: 'Publish Code Coverage Results'
+          condition: eq(variables['FileExists'], True)
+          inputs:
+            codeCoverageTool: Cobertura
+            summaryFileLocation: $(Build.SourcesDirectory)/TestResults/Coverage/Reports/Cobertura.xml
+            reportDirectory: $(Build.SourcesDirectory)/TestResults/Coverage/Reports
+            failIfCoverageEmpty: false
+
+    - job: PublishIdentityApplication
+      displayName: "Publish Identity API artifact"
+      condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/release'))
+      dependsOn: Build_Identity_Solution
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+
+        - task: UseDotNet@2
+          displayName: 'Use .NET Core sdk'
+          inputs:
+            packageType: 'sdk'
+            version: '8.x'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Nuget Restore'
+          inputs:
+            command: "restore"
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Identity.Api.csproj'
+
+        - task: qetza.replacetokens.replacetokens-task.replacetokens@6
+          displayName: 'Replace tokens in appsettings.json'
+          inputs:    
+            sources: |
+              **/*.json
+            root: '$(Build.SourcesDirectory)/src/consumer/StockTracker.Identity.Api/'
+            tokenPattern: doubleunderscores
+            logLevel: debug
+            missingVarAction: keep
+
+        - task: DotNetCoreCLI@2
+          displayName: "Publish Identity API artifact"
+          inputs:
+            command: publish
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Identity.Api.csproj'
+            arguments: --configuration Release --output $(Build.ArtifactStagingDirectory)/Release/identityapi
+            publishWebProjects: false
+            zipAfterPublish: false
+            modifyOutputPath: false
+
+        - publish: "$(Build.ArtifactStagingDirectory)/Release/identityapi"
+          displayName: "Publish Identity API binaries"
+          artifact: identity_binaries
+
+    - job: BuildIdentityApplicationContainer
+      displayName: "Build Identity API container image"
+      condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/release'))
+      dependsOn: PublishIdentityApplication
+      steps:
+        - download: current
+          displayName: Download Identity Api artifact
+          artifact: identity_binaries
+
+        - task: Docker@2
+          displayName: Docker Login
+          inputs:
+            command: login
+            containerRegistry: $(containerRegistrySvcConn)
+
+        - task: Docker@2
+          inputs:            
+            repository: '$(containerRepository)/stocktracker_identityapi'
+            command: 'buildAndPush'
+            Dockerfile: '$(Pipeline.Workspace)/identity_binaries/Dockerfile'
+            tags: |
+              $(semVer)
+
+  # Frontend Build and analyze
+  - stage: Build_Frontend_Function
+    displayName: "Build Frontend application"
+    dependsOn:
+      - Start
+      - Extractor_Infrastructure_Installation
+      - Identity_Infrastructure_Installation
+    variables:
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.SemVer'] ]
+    jobs:
+    - job: Build_Frontend_Solution
+      displayName: "Build Solution"
+      workspace:
+        clean: resources   
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+
+        - task: UseDotNet@2
+          displayName: 'Use .NET Core sdk'
+          inputs:
+            packageType: 'sdk'
+            version: '9.x'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Nuget Restore'
+          inputs:
+            command: "restore"
+            projects: '$(Build.SourcesDirectory)/*.sln'
+        
+        - task: DotNetCoreCLI@2
+          displayName: "Build Frontend application"
+          inputs:
+            commands: "build"
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Frontend.csproj'
+            arguments: "--no-restore --configuration Release"
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Test Frontend'
+          inputs:
+            command: "test"
+            projects: |
+              $(Build.SourcesDirectory)/tests/consumer/**/*.csproj
+              !**/*FunctionalTests.csproj
+            arguments: '--configuration Release "--collect:\"XPlat Code Coverage;Format=opencover\""'
+            publishTestResults: true
+
+        - task: CopyFiles@2
+          displayName: 'Copy *.trx to $(Pipeline.Workspace)'
+          inputs:
+            sourceFolder: $(Agent.TempDirectory)
+            contents: |
+              *.trx
+              *.opencover.xml
+              **/*.opencover.xml
+            targetFolder: $(Pipeline.Workspace)/$(Build.BuildNumber)
+
+        - powershell: |
+            $listOfFilesCount = if ((Test-Path -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)") -eq $true) { (Get-ChildItem -Recurse -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)" -Include "*.opencover.xml" | Measure-Object).Count } else { 0 }
+       
+            $condition = ($listOfFilesCount -gt 0)
+            Write-Output "##vso[task.setvariable variable=FileExists]$condition"
+          displayName: 'Code report evaluation'
+
+        - script: |      
+            reportgenerator "-reports:$(Pipeline.Workspace)/$(Build.BuildNumber)/**/*.opencover.xml" "-targetDir:$(Build.SourcesDirectory)/TestResults/Coverage/Reports" -tag:$(Build.BuildNumber) "-reporttypes:Cobertura;HTMLInline;HTMLChart"
+          displayName: 'Generate Coverage Report' 
+          condition: eq(variables['FileExists'], True)
+          
+        - task: PublishCodeCoverageResults@1
+          displayName: 'Publish Code Coverage Results'
+          condition: eq(variables['FileExists'], True)
+          inputs:
+            codeCoverageTool: Cobertura
+            summaryFileLocation: $(Build.SourcesDirectory)/TestResults/Coverage/Reports/Cobertura.xml
+            reportDirectory: $(Build.SourcesDirectory)/TestResults/Coverage/Reports
+            failIfCoverageEmpty: false
+
+    - job: PublishFrontendApplication
+      displayName: "Publish Frontend Application artifact"
+      condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/release'))
+      dependsOn: Build_Frontend_Solution
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+
+        - task: UseDotNet@2
+          displayName: 'Use .NET Core sdk'
+          inputs:
+            packageType: 'sdk'
+            version: '9.x'
+
+        - script: dotnet workload install wasm-tools
+          displayName: 'Install wasm-tools workload'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Nuget Restore'
+          inputs:
+            command: restore
+            projects: '$(Build.SourcesDirectory)/*.sln'
+
+        - task: qetza.replacetokens.replacetokens-task.replacetokens@6
+          displayName: 'Replace tokens in appsettings.json'
+          inputs:    
+            sources: |
+              **/*.json
+            root: '$(Build.SourcesDirectory)/src/consumer/StockTracker.Frontend/'
+            tokenPattern: doubleunderscores
+            logLevel: debug
+            missingVarAction: keep
+
+        - task: DotNetCoreCLI@2
+          displayName: "Publish Frontend Application artifact"
+          inputs:
+            command: publish
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Frontend.csproj'
+            arguments: '--configuration Release --output $(Build.ArtifactStagingDirectory)/$(buildConfiguration)/frontend --self-contained true'
+            publishWebProjects: false
+            zipAfterPublish: false
+            modifyOutputPath: false
+
+        - publish: "$(Build.ArtifactStagingDirectory)/$(buildConfiguration)/frontend"
+          displayName: "Publish frontend binaries"
+          artifact: frontend_binaries
+ 
+  # Product Deploy
+  - stage: Deploy_StockTracker
+    displayName: "Deploy Stock Tracker"
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/release'))
+    dependsOn:
+      - Start
+      - Build_Extractor_Function
+      - Build_Identity_Application
+      - Build_Frontend_Function
+    variables:
+      semVer: $[ stageDependencies.Start.Install_GitVersion_And_Bump_Version.outputs['SetSemVer.SemVer'] ]
+      functionAppName: 'func-stocktracker'              # As stated in: provision\extractor\tfvars\extractor.tfvars
+      storageName: 'ststocktracker'                     # As stated in: provision\extractor\tfvars\extractor.tfvars
+      identityApiAppName: 'app-stocktracker-identity'   # As stated in: provision\identity\tfvars\identity.tfvars
+    jobs:
+    - job: waitForValidation
+      displayName: 'Wait for deployment validation'
+      pool: server
+      timeoutInMinutes: 60 
+      steps:
+        - task: ManualValidation@1
+          timeoutInMinutes: 60
+          inputs:
+            notifyUsers: ''
+            instructions: 'Please validate the deployment of StockTracker: $(semVer)'
+            onTimeout: 'reject'
+
+    - job: CreateTaggedVersion
+      displayName: "Create Tag Version"
+      dependsOn:
+       - waitForValidation
+      steps:
+        - template: /pipelines/jobs/gitversion/tagversion.yml
+          parameters:
+            workingDirectory: "$(Pipeline.Workspace)"
+            semVerValue: $(semVer)
+
+    - job: DeployExtractorFunction
+      displayName: "Deploy Extractor function"
+      dependsOn:
+       - CreateTaggedVersion
+      steps:
+        - download: current
+          artifact: extractor_binaries          
+
+        - task: AzureFunctionApp@1
+          inputs:
+            azureSubscription: ${{ parameters.serviceConnection }}
+            appType: 'functionAppLinux'
+            appName: $(functionAppName)
+            package: '$(Pipeline.Workspace)/extractor_binaries/extractor_$(semVer).zip'
+            runtimeStack: 'DOTNET-ISOLATED|8.0'
+            deploymentMethod: 'zipDeploy'
+            
+    - job: DeployIdentityApi
+      displayName: "Deploy Identity Api"
+      dependsOn:
+        - CreateTaggedVersion
+      steps:
+        - task: AzureCLI@2
+          displayName: "Deploy Identity API Container"
+          inputs:
+            azureSubscription: ${{ parameters.serviceConnection }}
+            scriptType: pscore
+            scriptLocation: inlineScript
+            inlineScript: |
+              az --version
+              az account show
+              az webapp config container set --name $(identityApiAppName) `
+                --resource-group ${{ parameters.resourceGroupName }} `
+                --container-image-name $(containerRepository)/stocktracker_identityapi:$(semVer) `
+                --container-registry-url https://index.docker.io/v1/ `
+                --container-registry-user $(ContainerRegistryUserName) `
+                --container-registry-password $(ContainerRegistryPassword)
+
+    - job: DeployFrontend
+      displayName: "Deploy Frontend application"
+      pool:
+        vmImage: windows-latest
+      dependsOn:
+       - CreateTaggedVersion
+      steps:
+        - download: current
+          artifact: frontend_binaries          
+
+        - task: AzureFileCopy@6
+          inputs: 
+            SourcePath: '$(Pipeline.Workspace)/frontend_binaries/wwwroot/*'
+            azureSubscription: ${{ parameters.serviceConnection }}
+            Destination: 'AzureBlob'
+            storage: $(storageName)
+            ContainerName: '$web'
+            CleanTargetBeforeCopy: true
+          displayName: 'Upload Frontend files to Azure Storage container'

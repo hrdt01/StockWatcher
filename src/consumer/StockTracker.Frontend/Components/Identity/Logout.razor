@@ -1,0 +1,34 @@
+﻿@page "/logout"
+@using StockTracker.Frontend.Identity.Contracts.Definition
+@using StockTracker.Frontend.Identity.Contracts.Implementation
+
+@inject IAccountManagement accountManager
+@inject JwtAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Logout</PageTitle>
+
+<h1>Logout</h1>
+
+<AuthorizeView @ref="authView">
+    <Authorized>
+        <div class="alert alert-info">Logging you out...</div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-success">You're logged out. <a href="/login">Log in.</a></div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private AuthorizeView? authView;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await accountManager.CheckAuthenticatedAsync())
+        {
+            await accountManager.LogoutAsync();
+            await AuthStateProvider.SetCurrentTokenAsync(null);
+            Navigation.NavigateTo("/");
+        }
+    }
+}

@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "StockTracker.ExtractorFunction": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7161 --cors https://localhost:7030,http://localhost:5260 --cors-credentials true",
+      "launchBrowser": false
+    }
+  }
+}

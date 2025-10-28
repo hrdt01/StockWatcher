@@ -1,0 +1,74 @@
+﻿@using DialogService = Radzen.DialogService
+@using JustifyContent = Radzen.JustifyContent
+@inherits LayoutComponentBase
+@inject DialogService ds
+<HeadContent>
+    <RadzenTheme Theme="material" />
+</HeadContent>
+<RadzenComponents />
+<RadzenDialog></RadzenDialog>
+<RadzenNotification></RadzenNotification>
+<RadzenContextMenu></RadzenContextMenu>
+<RadzenTooltip></RadzenTooltip>
+
+<RadzenLayout style="position: relative;grid-template-areas: 'rz-sidebar rz-header' 'rz-sidebar rz-body'">
+    <RadzenHeader>            
+        <RadzenRow class="rz-text-align-left" JustifyContent="JustifyContent.Normal">
+                <RadzenColumn Size="1" class="rz-p-2 rz-p-md-5">
+                    <RadzenSidebarToggle Click="@(() => sidebarExpanded = !sidebarExpanded)"/>
+                </RadzenColumn>
+            <RadzenColumn Size="2" class="rz-p-2 rz-p-md-8">
+                    <RadzenLabel Text="Stock Tracker" />
+                </RadzenColumn>
+            <RadzenColumn Size="6" class="rz-p-2 rz-p-md-8 rz-text-align-right">
+                    <AuthorizeView>
+                        <Authorized>
+                            Logged in as @context.User.Identity?.Name. <a href="logout">Logout</a>
+                        </Authorized>
+                        <NotAuthorized>
+                            <a href="login">Login</a>
+                        </NotAuthorized>
+                    </AuthorizeView>
+                </RadzenColumn>
+            </RadzenRow>
+
+    </RadzenHeader>
+    <RadzenSidebar Responsive="false" @bind-Expanded="@sidebarExpanded" style="position: absolute; z-index: 3">
+        <RadzenStack AlignItems="AlignItems.End" class="rz-p-2">
+            <RadzenButton Icon="west" Variant="Variant.Text" ButtonStyle="ButtonStyle.Secondary" Click="@(() => sidebarExpanded = false)" />
+        </RadzenStack>
+        <RadzenPanelMenu>
+            <RadzenPanelMenuItem Text="Home" Icon="home" Match="NavLinkMatch.All" Path="/" Click="@(() => sidebarExpanded = !sidebarExpanded)"  />
+            <AuthorizeView Roles="Admin,Viewer">
+                <Authorized>
+                    <RadzenPanelMenuItem Text="Tracker" Icon="account_box" Match="NavLinkMatch.All" Path="tracker" Click="@(() => sidebarExpanded = !sidebarExpanded)"/>
+                </Authorized>
+            </AuthorizeView>
+            <AuthorizeView Roles="Admin">
+                <Authorized>
+                    <RadzenPanelMenuItem Text="Settings" Icon="settings" Match="NavLinkMatch.All" Path="settings" Click="@(() => sidebarExpanded = !sidebarExpanded)"/>
+                </Authorized>
+            </AuthorizeView>
+        </RadzenPanelMenu>
+    </RadzenSidebar>
+    <RadzenBody>
+        <ErrorBoundary>
+            <ChildContent>
+                <div class="rz-p-4">
+                    @Body
+                </div>
+            </ChildContent>
+            <ErrorContent Context="ex">
+                <div class="blazor-error-boundary">@(_ = ds.Alert(ex.Message))</div>
+            </ErrorContent>
+        </ErrorBoundary>
+    </RadzenBody>
+    @if (sidebarExpanded)
+    {
+        <div @onclick="@(() => sidebarExpanded = false)" class="rz-dialog-mask" style="position: absolute; z-index: 2"></div>
+    }
+</RadzenLayout>
+
+@code {
+    bool sidebarExpanded = false;
+}

@@ -1,0 +1,37 @@
+trigger:
+  branches:
+    include:
+    - develop
+    - master
+    - hotfix/*
+    - release/*
+
+pr:
+  branches:
+    include:
+    - master
+    - release/*
+
+variables:
+- group: Terraform
+- group: PipelinesCrosscutting
+- name: provisionPath
+  value: provision
+- name: location
+  value: 'westeurope'
+- name: environment
+  value: $(AzureSubscriptionName)
+- name: repositoryName
+  value: 'StockTracker'
+
+pool:
+  vmImage: 'ubuntu-latest'
+  
+stages:
+  - template: /pipelines/ci-cd-validation.yml
+    parameters:       
+      provisionPath: $(provisionPath)
+      location: $(location)
+      serviceConnection: $(TerraformBackendServiceConnectionName)
+      environmentName: $(environment)
+      repositoryName: $(repositoryName)

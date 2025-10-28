@@ -1,0 +1,285 @@
+﻿@page "/settings"
+@attribute [Authorize(Roles = "Admin")]
+@using StockTracker.Frontend.Identity.Contracts.Implementation
+@using StockTracker.Frontend.Identity.Models
+@using StockTracker.Frontend.Services.Definition
+@using StockTracker.Frontend.Services.Models
+@using JustifyContent = Radzen.JustifyContent
+@using Orientation = Radzen.Orientation
+
+@inject IApiConsumer apiConsumer;
+@inject JwtAuthenticationStateProvider AuthStateProvider
+<h3>Settings</h3>
+
+<AuthorizeView>
+@if (followedTickers == null)
+{
+    <p>
+        <em>Loading...</em>
+    </p>
+}
+else
+{
+    <RadzenCard class="rz-p-0">
+        <RadzenStack Orientation="Orientation.Vertical" Gap="10px" JustifyContent="JustifyContent.Start"
+        AlignItems="AlignItems.Stretch" Wrap="FlexWrap.Wrap">
+            <RadzenCard class="rz-p-1 rz-background-color-base-50 rz-color-info rz-text-align-left">
+                <RadzenAccordion Multiple="true">
+                    <Items>
+                        <RadzenAccordionItem Text="Gestión de acciones a trackear" Icon="build">
+                            <RadzenStack Orientation="Orientation.Vertical" Gap="4px">
+                                <RadzenLabel Text="Compañias en seguimiento"/>
+
+                                <RadzenDataGrid Visible="@isGridVisible" @ref="followedTickersGrid" 
+                                AllowAlternatingRows="false" AllowFiltering="false" AllowPaging="false"
+                                PageSize="50" AllowSorting="true" EditMode="@editMode"
+                                Data="@followedTickers" TItem="TrackedCompany"
+                                RowUpdate="@OnUpdateRow" RowCreate="@OnCreateRow" Sort="@Reset" Page="@Reset"
+                                Filter="@Reset" Density="Density.Compact" Style="width: 100%"
+                                SelectionMode="DataGridSelectionMode.Single" AllowRowSelectOnRowClick="false" RowSelect="OnCompanySelected">
+                                    <HeaderTemplate>
+                                        <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle" 
+                                        Text="Nuevo empresa a trackear" Click="@InsertRow" 
+                                        Disabled="@(editMode == DataGridEditMode.Single && followedToInsert.Any())" />
+                                    </HeaderTemplate>
+                                    <Columns>
+                                        <RadzenDataGridColumn Width="60px" Sortable="false" Filterable="false">
+                                            <Template Context="data">
+                                                <RadzenCheckBox TabIndex="-1" TriState="false" Value="@(followedTickers != null && selectedCompany!= null && selectedCompany.Symbol==data.Symbol)" InputAttributes="@(new Dictionary<string,object>(){ { "aria-label", "Select item" }})"
+                                                TValue="bool" Change=@(args => { followedTickersGrid.SelectRow(data); }) />
+                                            </Template>
+                                        </RadzenDataGridColumn>
+                                        <RadzenDataGridColumn Property="Symbol" Title="Ticker" Width="15%" Frozen="true">
+
+                                            <EditTemplate Context="order">
+                                                <RadzenTextBox Disabled="@(followedToUpdate.Any())" ReadOnly="@(followedToUpdate.Any())" @bind-Value="order.Symbol" Style="width:100%; display: block" Name="Symbol" />
+                                                <RadzenRequiredValidator Text="Symbol obligatorio" Component="Symbol" Popup="true" />
+                                            </EditTemplate>
+                                        </RadzenDataGridColumn>
+                                        <RadzenDataGridColumn Property="PseudoRowKey" Title="Ticker" Width="15%" Frozen="true" Visible="false">
+                                        </RadzenDataGridColumn>
+                                        <RadzenDataGridColumn Property="Name" Title="Empresa" Width="30%" Frozen="true">
+
+                                            <EditTemplate Context="order">
+                                                <RadzenTextBox @bind-Value="order.Name" Style="width:100%; display: block" Name="Empresa" />
+                                                <RadzenRequiredValidator Text="Nombre de Empresa obligatorio" Component="Empresa" Popup="true" />
+                                            </EditTemplate>
+                                        </RadzenDataGridColumn>
+                                        <RadzenDataGridColumn Property="Url" Title="Url mas info" Width="35%" Frozen="true">
+
+                                            <EditTemplate Context="order">
+                                                <RadzenTextBox @bind-Value="order.Url" Style="width:100%; display: block" Name="Url" />
+                                                <RadzenRequiredValidator Text="Url obligatorio" Component="Url" Popup="true" />
+                                            </EditTemplate>
+                                        </RadzenDataGridColumn>
+                                        <RadzenDataGridColumn Property="@nameof(TrackedCompany.Enabled)" Title="Trackeable"
+                                        Filterable="false" Sortable="false" TextAlign="TextAlign.Center" Width="10%">
+                                            <Template Context="company">
+                                                <RadzenSwitch @bind-Value=@company.Enabled Disabled="true"/>
+                                            </Template>
+                                            <EditTemplate Context="company">
+                                                <RadzenSwitch @bind-Value=@company.Enabled InputAttributes="@(new Dictionary<string, object>() {{"aria-label", "Switch value"}})"/>
+                                            </EditTemplate>
+                                        </RadzenDataGridColumn>
+
+                                        <RadzenDataGridColumn Context="company" Width="10%" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
+                                            <Template Context="company">
+                                                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" class="rz-my-1 rz-ms-1" Click="@(args => EditRow(company))" @onclick:stopPropagation="true"/>
+                                            </Template>
+                                            <EditTemplate Context="company">
+                                                <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@((args) => SaveRow(company))" aria-label="Save"/>
+                                                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" class="rz-my-1 rz-ms-1" Click="@((args) => CancelEdit(company))" aria-label="Cancel"/>
+                                            </EditTemplate>
+                                        </RadzenDataGridColumn>
+                                    </Columns>
+                                </RadzenDataGrid>
+                                @if (armonizedKpis != null && armonizedKpis.Any())
+                                {
+                                    <RadzenLabel Text="@($"KPIs definidos para {selectedCompanyName}")"/>
+                                    <RadzenTable GridLines="DataGridGridLines.Horizontal" AllowAlternatingRows="false">
+                                        <RadzenTableHeader>
+                                            <RadzenTableHeaderRow>
+                                                <RadzenTableHeaderCell>
+                                                    Día con EndOfDay
+                                                </RadzenTableHeaderCell>
+                                                <RadzenTableHeaderCell>
+                                                    Dia con KPI calculado
+                                                </RadzenTableHeaderCell>
+                                                <RadzenTableHeaderCell>
+                                                </RadzenTableHeaderCell>
+                                            </RadzenTableHeaderRow>
+                                        </RadzenTableHeader>
+                                        <RadzenTableBody>
+                                            @foreach (var element in armonizedKpis)
+                                            {
+                                                <RadzenTableRow>
+                                                    <RadzenTableCell>
+                                                        @element.Key
+                                                    </RadzenTableCell>
+                                                    <RadzenTableCell>
+                                                        @element.Value
+                                                    </RadzenTableCell>
+                                                    @if (element.Key == element.Value)
+                                                    {
+                                                        <RadzenTableCell></RadzenTableCell>
+                                                    }
+                                                    else
+                                                    {
+                                                        <RadzenTableCell>
+                                                            <RadzenButton
+
+                                                            Icon="check" Text="Calcular KPI" 
+                                                            ButtonStyle="ButtonStyle.Base"
+                                                            Click="@(() => {  return ProcessKpi(element.Key); })" />
+                                                        </RadzenTableCell>
+                                                    }
+                                                </RadzenTableRow>
+                                            }
+                                        </RadzenTableBody>
+                                    </RadzenTable>
+                                }
+                            </RadzenStack>
+                        </RadzenAccordionItem>
+                    </Items>
+                </RadzenAccordion>
+            </RadzenCard>
+        </RadzenStack>
+    </RadzenCard>
+    }
+</AuthorizeView>
+
+@code {
+    RadzenDataGrid<TrackedCompany> followedTickersGrid;
+    IEnumerable<TrackedCompany> followedTickers;
+    DataGridEditMode editMode = DataGridEditMode.Single;
+
+    List<TrackedCompany> followedToInsert = new List<TrackedCompany>();
+    List<TrackedCompany> followedToUpdate = new List<TrackedCompany>();
+    bool isGridVisible => followedTickers.Any();
+
+    TrackedCompany selectedCompany;
+    string selectedCompanyName;
+    public Dictionary<string, string> armonizedKpis { get; set; }
+
+    private bool armonizationKpiVisible => !string.IsNullOrWhiteSpace(selectedCompanyName);
+
+    private TokenModel? token;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        token = await AuthStateProvider.GetCurrentTokenAsync();        
+
+        await GetData();
+    }
+
+    void Reset()
+    {
+        followedToInsert.Clear();
+        followedToUpdate.Clear();
+    }
+
+    void Reset(TrackedCompany company)
+    {
+        followedToInsert.Remove(company);
+        followedToUpdate.Remove(company);
+    }
+
+    async Task EditRow(TrackedCompany company)
+    {
+        if (!followedTickersGrid.IsValid) return;
+
+        if (editMode == DataGridEditMode.Single)
+        {
+            Reset();
+        }
+
+        followedToUpdate.Add(company);
+        await followedTickersGrid.EditRow(company);
+    }
+
+    async Task OnUpdateRow(TrackedCompany company)
+    {
+        Reset(company);
+        var result = await apiConsumer.SaveTrackedCompany(company, tokenModel: token);
+    }
+
+    async Task SaveRow(TrackedCompany company)
+    {
+        await followedTickersGrid.UpdateRow(company);
+    }
+
+    async Task CancelEdit(TrackedCompany company)
+    {
+        Reset();
+
+        followedTickersGrid.CancelEditRow(company);
+
+        await GetData();
+    }
+
+    async Task InsertRow()
+    {
+        if (!followedTickersGrid.IsValid) return;
+
+        if (editMode == DataGridEditMode.Single)
+        {
+            Reset();
+        }
+
+        var company = new TrackedCompany();
+        followedToInsert.Add(company);
+        await followedTickersGrid.InsertRow(company);
+        foreach (var dataGridColumn in followedTickersGrid.ColumnsCollection)
+        {
+            if (dataGridColumn.Frozen)
+                dataGridColumn.Frozen = false;
+        }
+    }
+
+    async Task OnCreateRow(TrackedCompany company)
+    {
+        var result = await apiConsumer.SaveTrackedCompany(company, tokenModel: token);
+        if (result)
+            followedToInsert.Remove(company);
+    }
+
+    private async Task GetData()
+    {
+        var result = await apiConsumer.GetTrackedCompanies(enabled: false, tokenModel: token);
+        followedTickers = result;
+    }
+
+    private async Task OnCompanySelected(TrackedCompany source)
+    {
+        if (selectedCompany == null || (selectedCompany != null && selectedCompany.Symbol != source.Symbol))
+        {
+            selectedCompany = source;
+            selectedCompanyName = source.Name;
+            await GetArmonizedKpis();
+        }
+        else if (selectedCompany != null && selectedCompany.Symbol == source.Symbol)
+        {
+            selectedCompany = null;
+            selectedCompanyName = string.Empty;
+            armonizedKpis = new();
+        }
+    }
+
+    private async Task GetArmonizedKpis()
+    {
+        var persistedEndOfDayDates = await apiConsumer.GetDatesBySymbol(selectedCompany.Symbol, tokenModel: token);
+        var persistedKpisDates = await apiConsumer.GetKpiDatesBySymbol(selectedCompany.Symbol, tokenModel: token);
+        armonizedKpis =
+            persistedEndOfDayDates.ToDictionary(
+                endOfDayDate => endOfDayDate,
+                endOfDayDate => persistedKpisDates.Contains(endOfDayDate) ? endOfDayDate : "Sin calcular todavia");
+    }
+
+    private async Task ProcessKpi(string sourceDate)
+    {
+        _ = await apiConsumer.CreateKpiCalculationRequest(selectedCompany.Symbol, sourceDate, tokenModel: token);
+        armonizedKpis[sourceDate] = sourceDate;
+    }
+    
+}

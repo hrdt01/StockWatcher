@@ -1,0 +1,28 @@
+parameters:
+  - name: workingDirectory
+    type: string
+    default: $(Build.SourcesDirectory)
+  - name: semVerValue
+    type: string
+  
+
+steps:
+  - checkout: self
+    clean: true
+    persistCredentials: true
+    fetchDepth: 0
+
+  - task: CmdLine@2
+    displayName: "Create Git tag for current version"
+    inputs:
+      script: |
+        echo "${{parameters.semVerValue}}"
+        # due to: https://learn.microsoft.com/en-us/azure/devops/pipelines/repos/github?view=azure-devops&tabs=yaml#pre-defined-variables
+        # git config --global user.email $(Build.RequestedForEmail)
+        # git config --global user.name $(Build.RequestedFor)
+
+        git config --global user.email $(GitHubUserEmail)
+        git config --global user.name $(GitHubUserName)
+
+        git tag -a ${{parameters.semVerValue}} -m "$(Build.SourceVersionMessage)"
+        git push origin ${{parameters.semVerValue}} --tags

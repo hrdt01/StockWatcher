@@ -1,0 +1,76 @@
+﻿@page "/"
+@using StockTracker.Frontend.Identity.Contracts.Implementation
+@using StockTracker.Frontend.Identity.Models
+@using StockTracker.Frontend.Services.Definition
+@using StockTracker.Frontend.Services.Models
+@using JustifyContent = Radzen.JustifyContent
+@using Orientation = Radzen.Orientation
+
+@inject IApiConsumer apiConsumer;
+@inject JwtAuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Home</PageTitle>
+
+<h1>Seguimiento de acciones al cierre del dia.</h1>
+@if (!followedTickers.Any())
+{
+    <p>
+        <em>Loading...</em>
+    </p>
+}
+else
+{
+    <h3>A dia de hoy se realiza el seguimiento de las siguientes compañias:</h3>
+    
+    <RadzenCard class="rz-p-0">
+    <RadzenStack Orientation="Orientation.Vertical" Gap="20px" JustifyContent="JustifyContent.Start"
+                 AlignItems="AlignItems.Stretch" Wrap="FlexWrap.Wrap">
+    <RadzenCard class="rz-p-1 rz-background-color-base-50 rz-color-info rz-text-align-left">
+        <RadzenTable GridLines="DataGridGridLines.Horizontal" AllowAlternatingRows="false">
+            <RadzenTableHeader>
+                <RadzenTableHeaderRow>
+                    <RadzenTableHeaderCell>
+                        Empresa
+                    </RadzenTableHeaderCell>
+                    <RadzenTableHeaderCell>
+                        Ticker
+                    </RadzenTableHeaderCell>
+                    <RadzenTableHeaderCell>
+                        Más info
+                    </RadzenTableHeaderCell>
+                </RadzenTableHeaderRow>
+            </RadzenTableHeader>
+            <RadzenTableBody>
+                @foreach (var ticker in followedTickers)
+                {
+                    <RadzenTableRow>
+                        <RadzenTableCell>
+                                    @ticker.Name
+                        </RadzenTableCell>
+                        <RadzenTableCell>
+                                    @ticker.Symbol
+                        </RadzenTableCell>
+                        <RadzenTableCell>
+                                    Para mas info <a target="_blank" href="@ticker.Url">click aquí</a>
+                        </RadzenTableCell>
+                    </RadzenTableRow>}
+            </RadzenTableBody>
+        </RadzenTable>
+    </RadzenCard>
+    </RadzenStack>
+    </RadzenCard>
+}
+
+@code
+{
+    List<TrackedCompany> followedTickers = new();
+
+    private TokenModel? token;
+
+    protected override async Task OnInitializedAsync()
+    {
+        token = await AuthStateProvider.GetCurrentTokenAsync();
+        var result = await apiConsumer.GetTrackedCompanies(enabled: true, tokenModel: token);
+        followedTickers = result.ToList();
+    }
+}

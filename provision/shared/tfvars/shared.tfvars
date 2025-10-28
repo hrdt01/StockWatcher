@@ -1,0 +1,5 @@
+stocktracker_endofday_tablename = "EndOfDayTracker"
+stocktracker_kpimessagebroker_queuename = "kpi-message-broker"
+stocktracker_cleanupmessagebroker_queuename = "cleanup-message-broker"
+app_insights_rg_name = "rg-shared"
+app_insights_name    = "appi-hactema"          

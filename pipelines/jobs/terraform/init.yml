@@ -1,0 +1,30 @@
+parameters:
+  - name: terraformPath
+    type: string
+  - name: environmentName
+    type: string    
+  - name: projectName
+    type: string
+    default: ''  
+  - name: backendServiceConnection
+    type: string
+    default: ''
+
+steps:
+- task: TerraformInstaller@1
+  displayName: "Install Terraform $(TerraformVersion)"
+  inputs:
+    terraformVersion: $(TerraformVersion)
+
+- task: TerraformTaskV4@4
+  displayName: 'Terraform: init for ${{ parameters.projectName }} project'
+  inputs:
+    provider: 'azurerm'
+    command: 'init'
+    workingDirectory: '${{ parameters.terraformPath }}'
+    commandOptions: '-input=false'
+    backendServiceArm: ${{ parameters.backendServiceConnection }} # Service Connection Name for Backend
+    backendAzureRmResourceGroupName: $(TerraformBackendResourceGroupName) # Resource Group Name for Backend
+    backendAzureRmStorageAccountName: $(TerraformBackendAzureRmStorageAccountName) # Storage AccountName for Backend
+    backendAzureRmContainerName: $(TerraformBackendAzureRmContainerName) # Container Name for Backend
+    backendAzureRmKey: ${{ parameters.environmentName }}/${{ parameters.projectName }}.tfstate # State file for Backend 

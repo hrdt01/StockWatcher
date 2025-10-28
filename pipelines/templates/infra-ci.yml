@@ -1,0 +1,62 @@
+parameters:
+  - name: terraformPath
+    type: string  
+
+  - name: environmentName
+    type: string
+
+  - name: provisionPath
+    type: string
+
+  - name: projectName
+    type: string
+    default: ''
+
+  - name: infraRelativePath
+    type: string
+    default: 'provision'
+
+  - name: tfModulesPath
+    type: string
+    default: '$(Build.SourcesDirectory)/provision/modules/'
+
+  - name: serviceConnection
+    default: ''
+    type: string
+
+steps:
+  - task: CopyFiles@2
+    displayName: 'Copy TF provision files to ${{ parameters.environmentName }}'
+    inputs:
+      sourceFolder: ${{ parameters.terraformPath }}
+      contents: |
+        **/*.tf
+        **/*.tfvars
+      TargetFolder: $(Build.SourcesDirectory)/${{ parameters.environmentName }}/${{ parameters.provisionPath }}/${{ parameters.projectName }}
+  
+  - task: CopyFiles@2
+    displayName: 'Copy TF modules provision files to ${{ parameters.environmentName }}'
+    inputs:
+      sourceFolder: ${{ parameters.tfModulesPath }}
+      contents: |
+        **/*.tf
+        **/*.tfvars
+      TargetFolder: $(Build.SourcesDirectory)/${{ parameters.environmentName }}/${{ parameters.provisionPath }}/modules
+
+  - template: /pipelines/jobs/utils/replace-tokens.yml
+    parameters:
+      workingDirectory: $(Build.SourcesDirectory)/${{ parameters.environmentName }}/${{ parameters.provisionPath }}/${{ parameters.projectName }}
+
+  - template: /pipelines/jobs/terraform/init.yml
+    parameters:
+      terraformPath: $(Build.SourcesDirectory)/${{ parameters.environmentName }}/${{ parameters.provisionPath }}/${{ parameters.projectName }}
+      environmentName: ${{ parameters.environmentName }}
+      projectName: ${{ parameters.projectName }}
+      backendServiceConnection: ${{ parameters.serviceConnection }}
+
+  - template: /pipelines/jobs/terraform/validate.yml
+    parameters:
+      terraformPath: $(Build.SourcesDirectory)/${{ parameters.environmentName }}/${{ parameters.provisionPath }}/${{ parameters.projectName }}
+      environmentName: ${{ parameters.environmentName }}
+      projectName: ${{ parameters.projectName }}
+      backendServiceConnection: ${{ parameters.serviceConnection }}

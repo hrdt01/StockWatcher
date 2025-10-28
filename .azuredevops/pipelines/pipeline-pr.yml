@@ -1,0 +1,36 @@
+trigger:
+  branches:
+    include:
+    - develop
+    - release/*
+    - hotfix/*
+    - feature/*
+
+variables:
+- group: Terraform
+- group: PipelinesCrosscutting
+- name: provisionPath
+  value: provision
+- name: location
+  value: 'westeurope'
+- name: environment
+  value: $(AzureSubscriptionName)
+- name: repositoryName
+  value: 'StockTracker'
+# - name: infraRelativePath
+#   value: "/infra"
+
+pool:
+  vmImage: 'ubuntu-latest'
+  
+stages:
+  - template: /pipelines/pr-validation.yml
+    parameters:       
+      provisionPath: $(provisionPath)
+      location: $(location)
+      serviceConnection: $(TerraformBackendServiceConnectionName)
+      environmentName: $(environment)
+      repositoryName: $(repositoryName)
+
+
+

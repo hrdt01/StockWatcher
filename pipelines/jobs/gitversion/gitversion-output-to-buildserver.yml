@@ -1,0 +1,20 @@
+
+# See https://github.com/GitTools/actions/blob/main/docs/examples/azure/gitversion/execute.md#outputs for all available variables.
+
+parameters:
+  - name: workingDirectory
+    type: string
+    default: $(Build.SourcesDirectory)
+    
+  - name: repositoryName
+    default: 'StockTracker'
+    type: string
+
+steps:
+- task: gitversion/execute@3.1.11
+  displayName: Determine Version
+  name: SetSemVer # step id used as reference for output values
+  inputs:   
+    targetPath: '${{ parameters.workingDirectory }}/${{ parameters.repositoryName }}'
+    overrideConfig: |
+      update-build-number=false

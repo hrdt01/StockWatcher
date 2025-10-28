@@ -1,0 +1,10 @@
+parameters:
+  - name: workingDirectory
+    type: string
+    default: $(Build.SourcesDirectory)
+
+steps:
+- task: gitversion/setup@3.1.11
+  displayName: Install GitVersion
+  inputs:
+    versionSpec: '6.0.4'
