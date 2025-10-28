@@ -5,8 +5,8 @@ StockTracker is a comprehensive stock market tracking application that monitors 
 
 
 ## Key Features
-- Real-time stock tracking for selected companies
 - End-of-day stock data analysis
+- Custom financial KPI calculations for selected companies
 - Role-based access control (Admin and Viewer roles)
 - Interactive data visualization
 - Automated data extraction on business days
