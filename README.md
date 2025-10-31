@@ -29,7 +29,7 @@ StockTracker is a comprehensive stock market tracking application that monitors 
 ### Infrastructure
 - Azure Cloud Services
 - Terraform for Infrastructure as Code (IaC)
-- Azure Static Web Apps
+- Azure Web Apps
 - Azure Storage Account
 
 ### Architecture Components
@@ -46,6 +46,28 @@ StockTracker is a comprehensive stock market tracking application that monitors 
 - Dependency Injection
 - Resilient HTTP communication
 - CQRS pattern implementation
+
+## Testing and Quality Assurance
+### Test Coverage
+- Unit Testing: Comprehensive test suite for business logic and services
+- Integration Testing: End-to-end testing of component interactions
+- API Testing: Validation of external API integrations
+
+### Quality Metrics
+- Automated test execution in Azure DevOps CI/CD pipelines
+  - Tests run on pipeline execution 
+- Code coverage reporting through Azure DevOps
+  - Coverage reports generated for each test run
+  - Coverage trends tracked across builds
+   
+### Testing Tools
+- xUnit for integration testing
+- NUnit for unit testing
+- Moq for mocking dependencies
+- Code coverage tools integrated with Azure DevOps
+  - Test results publishing
+  - Coverage reporting and tracking
+
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.
