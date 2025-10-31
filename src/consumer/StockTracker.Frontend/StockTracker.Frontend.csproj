@@ -13,11 +13,11 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="9.0.10" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.10" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10" />
-    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.13.0" />
-    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.13.0" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.13.1" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.13.1" />
     <PackageReference Include="Polly.Extensions" Version="8.6.4" />
     <PackageReference Include="PSC.Blazor.Components.Chartjs" Version="8.0.8" />
-    <PackageReference Include="Radzen.Blazor" Version="8.1.5" />
+    <PackageReference Include="Radzen.Blazor" Version="8.1.7" />
   </ItemGroup>
 
   <ItemGroup>

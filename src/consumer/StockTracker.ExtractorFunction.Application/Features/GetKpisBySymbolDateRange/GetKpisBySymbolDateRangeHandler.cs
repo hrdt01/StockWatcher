@@ -14,6 +14,8 @@ public class GetKpisBySymbolDateRangeHandler : IRequestHandler<KpisBySymbolDateR
         IStockKpiCalculator stockKpiCalculator,
         ILogger<GetKpisBySymbolDateRangeHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(stockKpiCalculator);
+        ArgumentNullException.ThrowIfNull(logger);
         _stockKpiCalculator = stockKpiCalculator;
         _logger = logger;
     }

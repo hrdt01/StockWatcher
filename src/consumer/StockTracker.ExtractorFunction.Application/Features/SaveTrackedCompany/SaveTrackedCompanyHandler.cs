@@ -16,8 +16,13 @@ public class SaveTrackedCompanyHandler : IRequestHandler<SaveTrackedCompanyReque
     public SaveTrackedCompanyHandler(
         IStockTracker stockTracker,
         IKpiProcessorMessageBroker kpiProcessorMessageBroker,
-        ILogger<SaveTrackedCompanyHandler> logger, IPublisher publisher)
+        ILogger<SaveTrackedCompanyHandler> logger,
+        IPublisher publisher)
     {
+        ArgumentNullException.ThrowIfNull(stockTracker);
+        ArgumentNullException.ThrowIfNull(kpiProcessorMessageBroker);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(publisher);
         _stockTracker = stockTracker;
         _kpiProcessorMessageBroker = kpiProcessorMessageBroker;
         _logger = logger;

@@ -202,6 +202,8 @@ stages:
     jobs:
     - job: Build_Solution
       displayName: "Build Solution"
+      services:
+        azurite: azurite
       workspace:
         clean: resources   
       steps:
@@ -214,14 +216,17 @@ stages:
           displayName: 'Use .NET Core sdk'
           inputs:
             packageType: 'sdk'
-            version: '9.x'
+            version: '8.x'
+
+        - script: 'dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.4.18'
+          displayName: 'Install Report Tool'
 
         - task: DotNetCoreCLI@2
           displayName: 'DotNet Nuget Restore'
           inputs:
             command: "restore"
-            projects: '$(Build.SourcesDirectory)/*.sln'
-        
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*ExtractorFunction.csproj'
+                    
         - task: DotNetCoreCLI@2
           displayName: "Build Extractor function"
           inputs:
@@ -234,7 +239,7 @@ stages:
           inputs:
             command: "test"
             projects: |
-              $(Build.SourcesDirectory)/tests/consumer/**/*.csproj
+              $(Build.SourcesDirectory)/tests/**/*UnitTests.csproj
               !**/*FunctionalTests.csproj
             arguments: '--configuration Release "--collect:\"XPlat Code Coverage;Format=opencover\""'
             publishTestResults: true
@@ -280,6 +285,8 @@ stages:
     jobs:
     - job: Build_Identity_Solution
       displayName: "Build Identity Solution"
+      services:
+        azurite: azurite
       workspace:
         clean: resources
       steps:
@@ -294,6 +301,9 @@ stages:
             packageType: 'sdk'
             version: '8.x'
 
+        - script: 'dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.4.18'
+          displayName: 'Install Report Tool'
+
         - task: DotNetCoreCLI@2
           displayName: 'DotNet Nuget Restore'
           inputs:
@@ -307,43 +317,12 @@ stages:
             projects: '$(Build.SourcesDirectory)/src/consumer/**/*Identity.Api.csproj'
             arguments: --no-restore --configuration Release"
 
-    - job: Build_Frontend_Solution
-      displayName: "Build Frontend Solution"
-      dependsOn:
-       - Build_Identity_Solution
-      workspace:
-        clean: resources   
-      steps:
-        - checkout: self
-          clean: true
-          persistCredentials: true
-          fetchDepth: 0
-
-        - task: UseDotNet@2
-          displayName: 'Use .NET Core sdk'
-          inputs:
-            packageType: 'sdk'
-            version: '9.x'
-
         - task: DotNetCoreCLI@2
-          displayName: 'DotNet Nuget Restore'
-          inputs:
-            command: "restore"
-            projects: '$(Build.SourcesDirectory)/*.sln'
-        
-        - task: DotNetCoreCLI@2
-          displayName: "Build Frontend application"
-          inputs:
-            commands: "build"
-            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Frontend.csproj'
-            arguments: "--no-restore --configuration $(buildConfiguration)"
-
-        - task: DotNetCoreCLI@2
-          displayName: 'DotNet Test Frontend'
+          displayName: 'DotNet Test Identity'
           inputs:
             command: "test"
             projects: |
-              $(Build.SourcesDirectory)/tests/consumer/**/*.csproj
+              $(Build.SourcesDirectory)/tests/**/*IntegrationTests.csproj
               !**/*FunctionalTests.csproj
             arguments: '--configuration Release "--collect:\"XPlat Code Coverage;Format=opencover\""'
             publishTestResults: true
@@ -378,3 +357,34 @@ stages:
             summaryFileLocation: $(Build.SourcesDirectory)/TestResults/Coverage/Reports/Cobertura.xml
             reportDirectory: $(Build.SourcesDirectory)/TestResults/Coverage/Reports
             failIfCoverageEmpty: false
+
+    - job: Build_Frontend_Solution
+      displayName: "Build Frontend Solution"
+      dependsOn:
+       - Build_Identity_Solution
+      workspace:
+        clean: resources   
+      steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+          fetchDepth: 0
+
+        - task: UseDotNet@2
+          displayName: 'Use .NET Core sdk'
+          inputs:
+            packageType: 'sdk'
+            version: '9.x'
+
+        - task: DotNetCoreCLI@2
+          displayName: 'DotNet Nuget Restore'
+          inputs:
+            command: "restore"
+            projects: '$(Build.SourcesDirectory)/*.sln'
+        
+        - task: DotNetCoreCLI@2
+          displayName: "Build Frontend application"
+          inputs:
+            commands: "build"
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*Frontend.csproj'
+            arguments: "--no-restore --configuration $(buildConfiguration)"

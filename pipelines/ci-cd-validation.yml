@@ -277,6 +277,8 @@ stages:
     jobs:
     - job: Build_Solution
       displayName: "Build Solution"
+      services:
+        azurite: azurite
       workspace:
         clean: resources   
       steps:
@@ -289,13 +291,16 @@ stages:
           displayName: 'Use .NET Core sdk'
           inputs:
             packageType: 'sdk'
-            version: '9.x'
+            version: '8.x'
+
+        - script: 'dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.4.18'
+          displayName: 'Install Report Tool'
 
         - task: DotNetCoreCLI@2
           displayName: 'DotNet Nuget Restore'
           inputs:
             command: "restore"
-            projects: '$(Build.SourcesDirectory)/*.sln'
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*ExtractorFunction.csproj'
         
         - task: DotNetCoreCLI@2
           displayName: "Build Extractor function"
@@ -309,7 +314,7 @@ stages:
           inputs:
             command: "test"
             projects: |
-              $(Build.SourcesDirectory)/tests/consumer/**/*.csproj
+              $(Build.SourcesDirectory)/tests/**/*UnitTests.csproj
               !**/*FunctionalTests.csproj
             arguments: '--configuration Release "--collect:\"XPlat Code Coverage;Format=opencover\""'
             publishTestResults: true
@@ -359,13 +364,13 @@ stages:
           displayName: 'Use .NET Core sdk'
           inputs:
             packageType: 'sdk'
-            version: '9.x'
+            version: '8.x'
 
         - task: DotNetCoreCLI@2
           displayName: 'DotNet Nuget Restore'
           inputs:
             command: restore
-            projects: '$(Build.SourcesDirectory)/*.sln'
+            projects: '$(Build.SourcesDirectory)/src/consumer/**/*ExtractorFunction.csproj'
 
         - task: qetza.replacetokens.replacetokens-task.replacetokens@6
           displayName: 'Replace tokens in appsettings.json'
@@ -410,6 +415,8 @@ stages:
     jobs:
     - job: Build_Identity_Solution
       displayName: "Build Identity Solution"
+      services:
+        azurite: azurite
       workspace:
         clean: resources   
       steps:
@@ -423,6 +430,9 @@ stages:
           inputs:
             packageType: 'sdk'
             version: '8.x'
+
+        - script: 'dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.4.18'
+          displayName: 'Install Report Tool'
 
         - task: DotNetCoreCLI@2
           displayName: 'DotNet Nuget Restore'
@@ -438,11 +448,11 @@ stages:
             arguments: --no-restore --configuration Release"
 
         - task: DotNetCoreCLI@2
-          displayName: 'DotNet Test Frontend'
+          displayName: 'DotNet Test Identity'
           inputs:
             command: "test"
             projects: |
-              $(Build.SourcesDirectory)/tests/consumer/**/*.csproj
+              $(Build.SourcesDirectory)/tests/**/*IntegrationTests.csproj
               !**/*FunctionalTests.csproj
             arguments: '--configuration Release "--collect:\"XPlat Code Coverage;Format=opencover\""'
             publishTestResults: true
@@ -585,47 +595,6 @@ stages:
             commands: "build"
             projects: '$(Build.SourcesDirectory)/src/consumer/**/*Frontend.csproj'
             arguments: "--no-restore --configuration Release"
-
-        - task: DotNetCoreCLI@2
-          displayName: 'DotNet Test Frontend'
-          inputs:
-            command: "test"
-            projects: |
-              $(Build.SourcesDirectory)/tests/consumer/**/*.csproj
-              !**/*FunctionalTests.csproj
-            arguments: '--configuration Release "--collect:\"XPlat Code Coverage;Format=opencover\""'
-            publishTestResults: true
-
-        - task: CopyFiles@2
-          displayName: 'Copy *.trx to $(Pipeline.Workspace)'
-          inputs:
-            sourceFolder: $(Agent.TempDirectory)
-            contents: |
-              *.trx
-              *.opencover.xml
-              **/*.opencover.xml
-            targetFolder: $(Pipeline.Workspace)/$(Build.BuildNumber)
-
-        - powershell: |
-            $listOfFilesCount = if ((Test-Path -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)") -eq $true) { (Get-ChildItem -Recurse -Path "$(Pipeline.Workspace)/$(Build.BuildNumber)" -Include "*.opencover.xml" | Measure-Object).Count } else { 0 }
-       
-            $condition = ($listOfFilesCount -gt 0)
-            Write-Output "##vso[task.setvariable variable=FileExists]$condition"
-          displayName: 'Code report evaluation'
-
-        - script: |      
-            reportgenerator "-reports:$(Pipeline.Workspace)/$(Build.BuildNumber)/**/*.opencover.xml" "-targetDir:$(Build.SourcesDirectory)/TestResults/Coverage/Reports" -tag:$(Build.BuildNumber) "-reporttypes:Cobertura;HTMLInline;HTMLChart"
-          displayName: 'Generate Coverage Report' 
-          condition: eq(variables['FileExists'], True)
-          
-        - task: PublishCodeCoverageResults@1
-          displayName: 'Publish Code Coverage Results'
-          condition: eq(variables['FileExists'], True)
-          inputs:
-            codeCoverageTool: Cobertura
-            summaryFileLocation: $(Build.SourcesDirectory)/TestResults/Coverage/Reports/Cobertura.xml
-            reportDirectory: $(Build.SourcesDirectory)/TestResults/Coverage/Reports
-            failIfCoverageEmpty: false
 
     - job: PublishFrontendApplication
       displayName: "Publish Frontend Application artifact"

@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.Extensions.Logging;
 using StockTracker.Infrastructure.AzureTable.Definition;
+using StockTracker.MarketStack.Services.Contracts.Implementation;
 using StockTracker.Models.ApiModels;
 
 namespace StockTracker.ExtractorFunction.Application.Features.KpiProcessMessage;
@@ -14,6 +15,8 @@ public class KpiProcessMessageHandler : IRequestHandler<KpiProcessMessageRequest
         IKpiProcessorMessageBroker kpiProcessorMessageBroker,
         ILogger<KpiProcessMessageHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(kpiProcessorMessageBroker);
+        ArgumentNullException.ThrowIfNull(logger);
         _kpiProcessorMessageBroker = kpiProcessorMessageBroker;
         _logger = logger;
     }

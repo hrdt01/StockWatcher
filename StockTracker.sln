@@ -21,13 +21,19 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockTracker.ExtractorFunct
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{71498DA5-CA44-4BE5-9C4E-2E2C0F1A7898}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockTracker.MarketStack.Services.UnitTests", "tests\StockTracker.Services.UnitTests\StockTracker.MarketStack.Services.UnitTests.csproj", "{F1825AB1-1DAE-47A8-851B-E0E4DE93DF48}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockTracker.MarketStack.Services.UnitTests", "tests\StockTracker.MarketStack.Services.UnitTests\StockTracker.MarketStack.Services.UnitTests.csproj", "{F1825AB1-1DAE-47A8-851B-E0E4DE93DF48}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockTracker.ExtractorFunction.Application", "src\consumer\StockTracker.ExtractorFunction.Application\StockTracker.ExtractorFunction.Application.csproj", "{1CF11509-4C67-4DAE-BF7D-247D11E97873}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockTracker.Frontend", "src\consumer\StockTracker.Frontend\StockTracker.Frontend.csproj", "{24193D31-F67B-48AC-9A27-DBFCC5AF90B3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockTracker.Identity.Api", "src\consumer\StockTracker.Identity.Api\StockTracker.Identity.Api.csproj", "{28F24963-DCE8-4B8A-96DF-0F514435FB44}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockTracker.Infrastructure.UnitTests", "tests\StockTracker.Infrastructure.UnitTests\StockTracker.Infrastructure.UnitTests.csproj", "{25253093-52FF-444D-827E-8D401186354D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockTracker.ExtractorFunction.Application.UnitTests", "tests\StockTracker.ExtractorFunction.Application.UnitTests\StockTracker.ExtractorFunction.Application.UnitTests.csproj", "{937A170E-B16A-4762-9907-9C054D6CAD92}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockTracker.Identity.Api.IntegrationTests", "tests\StockTracker.Identity.Api.IntegrationTests\StockTracker.Identity.Api.IntegrationTests.csproj", "{EA0C36F4-6288-453D-AAA7-9B8AA99B05BC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -71,6 +77,18 @@ Global
 		{28F24963-DCE8-4B8A-96DF-0F514435FB44}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{28F24963-DCE8-4B8A-96DF-0F514435FB44}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{28F24963-DCE8-4B8A-96DF-0F514435FB44}.Release|Any CPU.Build.0 = Release|Any CPU
+		{25253093-52FF-444D-827E-8D401186354D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{25253093-52FF-444D-827E-8D401186354D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{25253093-52FF-444D-827E-8D401186354D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{25253093-52FF-444D-827E-8D401186354D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{937A170E-B16A-4762-9907-9C054D6CAD92}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{937A170E-B16A-4762-9907-9C054D6CAD92}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{937A170E-B16A-4762-9907-9C054D6CAD92}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{937A170E-B16A-4762-9907-9C054D6CAD92}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EA0C36F4-6288-453D-AAA7-9B8AA99B05BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA0C36F4-6288-453D-AAA7-9B8AA99B05BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA0C36F4-6288-453D-AAA7-9B8AA99B05BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA0C36F4-6288-453D-AAA7-9B8AA99B05BC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -85,6 +103,9 @@ Global
 		{1CF11509-4C67-4DAE-BF7D-247D11E97873} = {ED4D6D8F-8422-4E1E-BE94-0EDC38D4B752}
 		{24193D31-F67B-48AC-9A27-DBFCC5AF90B3} = {ED4D6D8F-8422-4E1E-BE94-0EDC38D4B752}
 		{28F24963-DCE8-4B8A-96DF-0F514435FB44} = {ED4D6D8F-8422-4E1E-BE94-0EDC38D4B752}
+		{25253093-52FF-444D-827E-8D401186354D} = {71498DA5-CA44-4BE5-9C4E-2E2C0F1A7898}
+		{937A170E-B16A-4762-9907-9C054D6CAD92} = {71498DA5-CA44-4BE5-9C4E-2E2C0F1A7898}
+		{EA0C36F4-6288-453D-AAA7-9B8AA99B05BC} = {71498DA5-CA44-4BE5-9C4E-2E2C0F1A7898}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B4A66BA6-3E4E-40D2-9BE5-270BC7FD07AB}

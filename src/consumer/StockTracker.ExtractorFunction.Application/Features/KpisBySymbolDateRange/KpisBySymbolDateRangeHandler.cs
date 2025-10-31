@@ -1,5 +1,7 @@
 ﻿using MediatR;
 using Microsoft.Extensions.Logging;
+using StockTracker.Infrastructure.AzureTable.Definition;
+using StockTracker.Infrastructure.AzureTable.Implementation;
 using StockTracker.MarketStack.Services.Contracts.Definition;
 using StockTracker.Models.ApiModels;
 
@@ -16,6 +18,9 @@ public class KpisBySymbolDateRangeHandler : IRequestHandler<KpiCalculationReques
         IStockTracker stockTracker,
         ILogger<KpisBySymbolDateRangeHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(kpiCalculator);
+        ArgumentNullException.ThrowIfNull(stockTracker);
+        ArgumentNullException.ThrowIfNull(logger);
         _kpiCalculator = kpiCalculator;
         _stockTracker = stockTracker;
         _logger = logger;

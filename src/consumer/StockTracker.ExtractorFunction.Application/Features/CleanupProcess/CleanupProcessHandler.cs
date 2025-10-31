@@ -14,6 +14,9 @@ public class CleanupProcessHandler : IRequestHandler<CleanupProcessRequest, bool
         IStockKpiCalculator kpiCalculator,
         ILogger<CleanupProcessHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(kpiCalculator);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _kpiCalculator = kpiCalculator;
         _logger = logger;
     }

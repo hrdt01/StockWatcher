@@ -1,49 +1,47 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Polly.Registry;
-using StockTracker.MarketStack.Services.Contracts.Definition;
-using StockTracker.MarketStack.Services.Models;
-using System.Globalization;
-using System.Net.Http.Json;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Registry;
+using StockTracker.CrossCutting.Constants;
 using StockTracker.CrossCutting.ExceptionHandling.CustomExceptions;
 using StockTracker.Infrastructure.AzureTable.Definition;
+using StockTracker.MarketStack.Services.Contracts.Definition;
+using StockTracker.MarketStack.Services.Models;
 using StockTracker.Models;
-using StockTracker.Models.Mappers;
-using StockTracker.CrossCutting.Constants;
 using StockTracker.Models.ApiModels;
+using StockTracker.Models.Mappers;
 using StockTracker.Models.Persistence;
+using System.Globalization;
+using System.Net.Http.Json;
 
 namespace StockTracker.MarketStack.Services.Contracts.Implementation;
 
 public class StockTracker : IStockTracker
 {
     private readonly IHttpClientFactory _clientFactory;
-    private readonly IServiceProvider _serviceProvider;
     private readonly IStockInfoRepository _stockInfoRepository;
-    private readonly IAzureTableEntityResolver<StockInfoStorageTableKey> _tableEntityResolver;
     private readonly IConfiguration _configuration;
     private readonly ITrackedCompanyRepository _trackedCompanyRepository;
     private readonly ILogger<StockTracker> _logger;
     private readonly string? _accessKey;
+    private readonly ResiliencePipeline _resiliencePipeline;
 
     public StockTracker(
         IHttpClientFactory clientFactory, 
-        IServiceProvider serviceProvider,
         IStockInfoRepository stockInfoRepository,
         IAzureTableEntityResolver<StockInfoStorageTableKey> tableEntityResolver,
         IConfiguration configuration,
         ITrackedCompanyRepository trackedCompanyRepository,
+        ResiliencePipelineProvider<string> pipelineProvider,
         ILogger<StockTracker> logger)
     {
         _clientFactory = clientFactory ?? throw new ArgumentNullException("ClientFactory is null.");
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException("ServiceProvider is null.");
         _stockInfoRepository = stockInfoRepository ?? throw new ArgumentNullException("Repository is null.");
-        _tableEntityResolver = tableEntityResolver ?? throw new ArgumentNullException("EntityResolver is null.");
         _configuration = configuration ?? throw new ArgumentNullException("Configuration is null.");
         _trackedCompanyRepository = trackedCompanyRepository ?? throw new ArgumentNullException("Repository is null.");
         _logger = logger ?? throw new ArgumentNullException("Logger is null.");
         _accessKey = _configuration.GetValue<string>(ApiConstants.AccessKeySettingName);
+        _resiliencePipeline = pipelineProvider.GetPipeline(ApiConstants.ResiliencePipelineName);
     }
 
     /// <inheritdoc />
@@ -51,11 +49,7 @@ public class StockTracker : IStockTracker
     {
         var client = _clientFactory.CreateClient(ApiConstants.ClientFactoryName);
 
-        var resiliencePipeline = _serviceProvider
-            .GetRequiredService<ResiliencePipelineProvider<string>>()
-            .GetPipeline(ApiConstants.ResiliencePipelineName);
-
-        var apiResponse = await resiliencePipeline.ExecuteAsync(
+        var apiResponse = await _resiliencePipeline.ExecuteAsync(
             async (httpClient, ct) =>
             {
                 var finalUrl =

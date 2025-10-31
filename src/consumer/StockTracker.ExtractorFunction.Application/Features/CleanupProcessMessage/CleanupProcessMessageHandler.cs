@@ -14,6 +14,8 @@ public class CleanupProcessMessageHandler : IRequestHandler<CleanupProcessMessag
         ICleanupProcessorMessageBroker cleanupProcessorMessageBroker,
         ILogger<CleanupProcessMessageHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(cleanupProcessorMessageBroker);
+        ArgumentNullException.ThrowIfNull(logger);
         _cleanupProcessorMessageBroker = cleanupProcessorMessageBroker;
         _logger = logger;
     }

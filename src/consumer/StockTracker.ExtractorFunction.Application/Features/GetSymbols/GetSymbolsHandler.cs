@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.Extensions.Logging;
 using StockTracker.MarketStack.Services.Contracts.Definition;
+using StockTracker.MarketStack.Services.Contracts.Implementation;
 using StockTracker.Models.ApiModels;
 
 namespace StockTracker.ExtractorFunction.Application.Features.GetSymbols;
@@ -14,6 +15,8 @@ public class GetSymbolsHandler : IRequestHandler<SymbolsRequest, IEnumerable<str
         IStockTracker stockTracker,
         ILogger<GetSymbolsHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(stockTracker);
+        ArgumentNullException.ThrowIfNull(logger);
         _stockTracker = stockTracker;
         _logger = logger;
     }

@@ -14,6 +14,8 @@ public class GetTrackedCompaniesHandler : IRequestHandler<TrackedCompaniesReques
         IStockTracker stockTracker,
         ILogger<GetTrackedCompaniesHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(stockTracker);
+        ArgumentNullException.ThrowIfNull(logger);
         _stockTracker = stockTracker;
         _logger = logger;
     }

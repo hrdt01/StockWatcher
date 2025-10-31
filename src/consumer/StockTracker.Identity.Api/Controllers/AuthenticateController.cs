@@ -24,26 +24,22 @@ public class AuthenticateController : ControllerBase
     private readonly UserManager<StockTrackerUser> _userManager;
     private readonly ITokenService _tokenService;
     private readonly StockTrackerIdentityDbContext _context;
-    private readonly IConfiguration _configInstance;
 
     public AuthenticateController(
         ILogger<AuthenticateController> logger,
         UserManager<StockTrackerUser> userManager,
         ITokenService tokenService,
-        StockTrackerIdentityDbContext context,
-        IConfiguration configInstance)
+        StockTrackerIdentityDbContext context)
     {
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(userManager);
         ArgumentNullException.ThrowIfNull(tokenService);
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(configInstance);
 
         _logger = logger;
         _userManager = userManager;
         _tokenService = tokenService;
         _context = context;
-        _configInstance = configInstance;
     }
 
 

@@ -14,6 +14,8 @@ public class GetInfoBySymbolDateRangeHandler : IRequestHandler<SymbolRangeReques
         IStockTracker stockTracker,
         ILogger<GetInfoBySymbolDateRangeHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(stockTracker);
+        ArgumentNullException.ThrowIfNull(logger);
         _stockTracker = stockTracker;
         _logger = logger;
     }

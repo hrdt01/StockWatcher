@@ -11,6 +11,7 @@ public class InitialMigrationHandler : IRequestHandler<InitialMigrationRequest, 
     public InitialMigrationHandler(
         IStockTracker stockTracker)
     {
+        ArgumentNullException.ThrowIfNull(stockTracker);
         _stockTracker = stockTracker;
     }
     public async Task<bool> Handle(InitialMigrationRequest request, CancellationToken cancellationToken)

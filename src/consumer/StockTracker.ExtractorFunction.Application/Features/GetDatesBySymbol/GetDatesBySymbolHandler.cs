@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using Microsoft.Extensions.Logging;
+using StockTracker.Infrastructure.AzureTable.Implementation;
 using StockTracker.MarketStack.Services.Contracts.Definition;
 using StockTracker.Models.ApiModels;
 
@@ -14,6 +15,8 @@ public class GetDatesBySymbolHandler : IRequestHandler<DatesBySymbolRequest, IEn
         IStockTracker stockTracker,
         ILogger<GetDatesBySymbolHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(stockTracker);
+        ArgumentNullException.ThrowIfNull(logger);
         _stockTracker = stockTracker;
         _logger = logger;
     }

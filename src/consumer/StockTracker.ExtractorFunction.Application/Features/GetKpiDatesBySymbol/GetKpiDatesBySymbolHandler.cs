@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.Extensions.Logging;
 using StockTracker.MarketStack.Services.Contracts.Definition;
+using StockTracker.MarketStack.Services.Contracts.Implementation;
 using StockTracker.Models.ApiModels;
 
 namespace StockTracker.ExtractorFunction.Application.Features.GetDatesBySymbol;
@@ -14,6 +15,8 @@ public class GetKpiDatesBySymbolHandler : IRequestHandler<KpiDatesBySymbolReques
         IStockKpiCalculator stockKpiCalculator,
         ILogger<GetKpiDatesBySymbolHandler> logger)
     {
+        ArgumentNullException.ThrowIfNull(stockKpiCalculator);
+        ArgumentNullException.ThrowIfNull(logger);
         _stockKpiCalculator = stockKpiCalculator;
         _logger = logger;
     }

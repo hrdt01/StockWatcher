@@ -1,0 +1,31 @@
+ {
+  "pagination": {
+    "limit": 100,
+    "offset": 0,
+    "count": 1,
+    "total": 1
+  },
+  "data": [
+    {
+      "open": 24,
+      "high": 24.66,
+      "low": 24,
+      "close": 24.66,
+      "volume": 232124,
+      "adj_high": null,
+      "adj_low": null,
+      "adj_close": 24.66,
+      "adj_open": null,
+      "adj_volume": null,
+      "split_factor": 1,
+      "dividend": 0,
+      "name": null,
+      "exchange_code": null,
+      "asset_type": null,
+      "price_currency": null,
+      "symbol": "FDR.BMEX",
+      "exchange": "BMEX",
+      "date": "2025-01-17T00:00:00+0000"
+    }
+  ]
+}

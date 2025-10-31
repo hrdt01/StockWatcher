@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 namespace StockTracker.Identity.Api
 {
-    public class Program
+    public partial class Program
     {
         public static void Main(string[] args)
         {
@@ -42,4 +42,5 @@ namespace StockTracker.Identity.Api
             app.Run();
         }
     }
+    public partial class Program { }
 }
